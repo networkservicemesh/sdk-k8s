@@ -1,4 +1,4 @@
-module sdk-k8s
+module github.com/networkservicemesh/sdk-k8s
 
 go 1.14
 
