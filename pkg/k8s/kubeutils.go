@@ -14,8 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package utils contains different util functions for kubernetes interfaces and structures
-package utils
+// Package k8s contains different functions for kubernetes interfaces and structures
+package k8s
 
 import (
 	"os"
