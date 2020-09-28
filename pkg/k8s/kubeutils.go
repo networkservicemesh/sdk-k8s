@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/sirupsen/logrus"
+
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -32,6 +34,12 @@ func NewClientSetConfig() (*rest.Config, error) {
 	if configPath == "" {
 		configPath = filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	}
-	config, err := clientcmd.BuildConfigFromFlags("", configPath)
+
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		logrus.Infof("Unable to get in cluster config, attempting to fall back to kubeconfig: %v", err)
+		return clientcmd.BuildConfigFromFlags("", configPath)
+	}
+
 	return config, err
 }
