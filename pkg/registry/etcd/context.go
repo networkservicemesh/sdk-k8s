@@ -20,7 +20,7 @@ import (
 	"context"
 	"runtime/trace"
 
-	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client"
+	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/fake"
 )
@@ -74,7 +74,7 @@ func ClientSet(parent context.Context) versioned.Interface {
 }
 
 func defaultClientSet(ctx context.Context) versioned.Interface {
-	result, _, _ := client.NewClientSet()
+	result, _, _ := k8s.NewVersionedClient()
 
 	if result == nil {
 		result = fake.NewSimpleClientset()

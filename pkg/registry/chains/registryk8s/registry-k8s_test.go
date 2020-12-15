@@ -31,6 +31,8 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/chains/registryk8s"
+	"github.com/networkservicemesh/sdk-k8s/pkg/registry/etcd"
+	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/fake"
 	"github.com/networkservicemesh/sdk/pkg/tools/sandbox"
 )
 
@@ -41,7 +43,7 @@ func TestNSMGR_LocalUsecase(t *testing.T) {
 	defer cancel()
 	domain := sandbox.NewBuilder(t).
 		SetNodesCount(1).
-		SetContext(ctx).
+		SetContext(etcd.WithClientSet(ctx, fake.NewSimpleClientset())).
 		SetRegistrySupplier(registryk8s.NewServer).
 		SetRegistryProxySupplier(nil).
 		Build()
@@ -96,9 +98,9 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 	defer cancel()
 	domain := sandbox.NewBuilder(t).
 		SetNodesCount(2).
+		SetContext(etcd.WithClientSet(ctx, fake.NewSimpleClientset())).
 		SetRegistrySupplier(registryk8s.NewServer).
 		SetRegistryProxySupplier(nil).
-		SetContext(ctx).
 		Build()
 	defer domain.Cleanup()
 
