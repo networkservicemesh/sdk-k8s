@@ -39,13 +39,17 @@ type etcdNSERegistryServer struct {
 }
 
 func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.NetworkServiceEndpoint) (*registry.NetworkServiceEndpoint, error) {
+	meta := metav1.ObjectMeta{}
+	if request.Name == "" {
+		meta.GenerateName = "nse-"
+	} else {
+		meta.Name = request.Name
+	}
 	resp, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Create(
 		ctx,
 		&v1.NetworkServiceEndpoint{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: request.Name,
-			},
-			Spec: *(*v1.NetworkServiceEndpointSpec)(request),
+			ObjectMeta: meta,
+			Spec:       *(*v1.NetworkServiceEndpointSpec)(request),
 		},
 		metav1.CreateOptions{})
 	if err != nil {
@@ -101,9 +105,6 @@ func (n *etcdNSERegistryServer) watch(query *registry.NetworkServiceEndpointQuer
 		case <-s.Context().Done():
 			return s.Context().Err()
 		case event := <-watcher.ResultChan():
-			if event.Type != watch.Added && event.Type != watch.Deleted {
-				continue
-			}
 			model := event.Object.(*v1.NetworkServiceEndpoint)
 			item := (*registry.NetworkServiceEndpoint)(&model.Spec)
 			if event.Type == watch.Deleted {
@@ -120,10 +121,10 @@ func (n *etcdNSERegistryServer) watch(query *registry.NetworkServiceEndpointQuer
 }
 
 // NewNetworkServiceEndpointRegistryServer creates new registry.NetworkServiceRegistryServer that is using etcd to store network services.
-func NewNetworkServiceEndpointRegistryServer(chainContext context.Context) registry.NetworkServiceEndpointRegistryServer {
+func NewNetworkServiceEndpointRegistryServer(chainContext context.Context, ns string, client versioned.Interface) registry.NetworkServiceEndpointRegistryServer {
 	return &etcdNSERegistryServer{
 		chainContext: chainContext,
-		client:       ClientSet(chainContext),
-		ns:           Namespace(chainContext),
+		client:       client,
+		ns:           ns,
 	}
 }

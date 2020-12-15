@@ -47,11 +47,13 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 			},
 			Spec: *(*v1.NetworkServiceSpec)(request),
 		},
-		metav1.CreateOptions{})
+		metav1.CreateOptions{},
+	)
 	if err != nil {
 		return nil, err
 	}
 	resp.Spec.DeepCopyInto((*v1.NetworkServiceSpec)(request))
+	request.Name = resp.Name
 	return next.NetworkServiceRegistryServer(ctx).Register(ctx, request)
 }
 
@@ -107,7 +109,8 @@ func (n *etcdNSRegistryServer) Unregister(ctx context.Context, request *registry
 	err := n.client.NetworkservicemeshV1().NetworkServices(n.ns).Delete(
 		ctx,
 		request.Name,
-		metav1.DeleteOptions{})
+		metav1.DeleteOptions{},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -115,10 +118,10 @@ func (n *etcdNSRegistryServer) Unregister(ctx context.Context, request *registry
 }
 
 // NewNetworkServiceRegistryServer creates new registry.NetworkServiceRegistryServer that is using etcd to store network services.
-func NewNetworkServiceRegistryServer(chainContext context.Context) registry.NetworkServiceRegistryServer {
+func NewNetworkServiceRegistryServer(chainContext context.Context, ns string, client versioned.Interface) registry.NetworkServiceRegistryServer {
 	return &etcdNSRegistryServer{
 		chainContext: chainContext,
-		client:       ClientSet(chainContext),
-		ns:           Namespace(chainContext),
+		client:       client,
+		ns:           ns,
 	}
 }

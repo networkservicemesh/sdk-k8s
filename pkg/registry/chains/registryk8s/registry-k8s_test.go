@@ -19,6 +19,7 @@ package registryk8s_test
 import (
 	"context"
 	"io/ioutil"
+	"net/url"
 	"testing"
 	"time"
 
@@ -29,11 +30,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"google.golang.org/grpc"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/chains/registryk8s"
-	"github.com/networkservicemesh/sdk-k8s/pkg/registry/etcd"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/fake"
 	"github.com/networkservicemesh/sdk/pkg/tools/sandbox"
+
+	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
 )
 
 func TestNSMGR_LocalUsecase(t *testing.T) {
@@ -43,8 +46,8 @@ func TestNSMGR_LocalUsecase(t *testing.T) {
 	defer cancel()
 	domain := sandbox.NewBuilder(t).
 		SetNodesCount(1).
-		SetContext(etcd.WithClientSet(ctx, fake.NewSimpleClientset())).
-		SetRegistrySupplier(registryk8s.NewServer).
+		SetContext(ctx).
+		SetRegistrySupplier(supplyK8sRegistry).
 		SetRegistryProxySupplier(nil).
 		Build()
 	defer domain.Cleanup()
@@ -98,8 +101,8 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 	defer cancel()
 	domain := sandbox.NewBuilder(t).
 		SetNodesCount(2).
-		SetContext(etcd.WithClientSet(ctx, fake.NewSimpleClientset())).
-		SetRegistrySupplier(registryk8s.NewServer).
+		SetContext(ctx).
+		SetRegistrySupplier(supplyK8sRegistry).
 		SetRegistryProxySupplier(nil).
 		Build()
 	defer domain.Cleanup()
@@ -145,4 +148,8 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 	e, err := nsc.Close(ctx, conn)
 	require.NoError(t, err)
 	require.NotNil(t, e)
+}
+
+func supplyK8sRegistry(ctx context.Context, proxyRegistryURL *url.URL, options ...grpc.DialOption) registryserver.Registry {
+	return registryk8s.NewServer(ctx, "default", fake.NewSimpleClientset(), proxyRegistryURL, options...)
 }
