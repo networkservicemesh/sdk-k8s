@@ -23,6 +23,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
+
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -42,4 +44,14 @@ func NewClientSetConfig() (*rest.Config, error) {
 	}
 
 	return config, err
+}
+
+// NewVersionedClient creates a new networkservicemesh.io ClietSet for the default kubernetes config.
+func NewVersionedClient() (versioned.Interface, *rest.Config, error) {
+	config, err := NewClientSetConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+	nsmClientSet, err := versioned.NewForConfig(config)
+	return nsmClientSet, config, err
 }
