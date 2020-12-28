@@ -14,6 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//+build !windows
+
 // Package podresources provides a client for k8s podresources API
 package podresources
 
