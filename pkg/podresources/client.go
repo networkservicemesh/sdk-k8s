@@ -21,6 +21,7 @@ package podresources
 
 import (
 	"context"
+	"path"
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -32,15 +33,19 @@ import (
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/socketpath"
 )
 
+const (
+	kubeletSocket = "kubelet.sock"
+)
+
 // Client is a k8s podresources API helper class
 type Client struct {
 	podResourcesSocket string
 }
 
 // NewClient creates a new deviceplugin client
-func NewClient(podResourcesSocket string) *Client {
+func NewClient(podResourcesPath string) *Client {
 	return &Client{
-		podResourcesSocket: podResourcesSocket,
+		podResourcesSocket: path.Join(podResourcesPath, kubeletSocket),
 	}
 }
 
