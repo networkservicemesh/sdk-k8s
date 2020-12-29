@@ -9,7 +9,7 @@ jobs:
   update-dependent-repositories:
     strategy:
       matrix:
-        repository: [cmd-exclude-prefixes-k8s]
+        repository: [cmd-exclude-prefixes-k8s, cmd-forwarder-sriov]
     name: Update ${{ matrix.repository }}
     runs-on: ubuntu-latest
     steps:
