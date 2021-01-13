@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -26,6 +26,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/next"
@@ -49,6 +51,18 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 		},
 		metav1.CreateOptions{},
 	)
+	if apierrors.IsAlreadyExists(err) {
+		resp, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(
+			ctx,
+			&v1.NetworkService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: request.Name,
+				},
+				Spec: *(*v1.NetworkServiceSpec)(request),
+			},
+			metav1.UpdateOptions{},
+		)
+	}
 	if err != nil {
 		return nil, err
 	}

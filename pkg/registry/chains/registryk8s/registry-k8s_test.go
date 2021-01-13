@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -151,5 +151,11 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 }
 
 func supplyK8sRegistry(ctx context.Context, proxyRegistryURL *url.URL, options ...grpc.DialOption) registryserver.Registry {
-	return registryk8s.NewServer(ctx, "default", fake.NewSimpleClientset(), proxyRegistryURL, options...)
+	return registryk8s.NewServer(&registryk8s.Config{
+		ChainCtx:         ctx,
+		Namespace:        "default",
+		ClientSet:        fake.NewSimpleClientset(),
+		ExpirePeriod:     time.Minute,
+		ProxyRegistryURL: proxyRegistryURL,
+	}, options...)
 }
