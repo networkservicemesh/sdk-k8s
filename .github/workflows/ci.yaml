@@ -134,9 +134,14 @@ jobs:
           GITHUB_LOGIN: nsmbot
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   update-dependent-repositories:
+    continue-on-error: true
     strategy:
+      fail-fast: false
       matrix:
-        repository: [cmd-exclude-prefixes-k8s, cmd-forwarder-sriov]
+        repository:
+          - cmd-exclude-prefixes-k8s
+          - cmd-forwarder-sriov
+          - cmd-registry-k8s
     name: Update ${{ matrix.repository }}
     runs-on: ubuntu-latest
     needs:
