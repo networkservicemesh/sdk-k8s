@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,6 +19,7 @@ package registryk8s
 import (
 	"context"
 	"net/url"
+	"time"
 
 	"github.com/networkservicemesh/api/pkg/api/registry"
 	"google.golang.org/grpc"
@@ -34,23 +35,32 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/registry/core/chain"
 )
 
+// Config contains configuration parameters for registry.Registry based on k8s client
+type Config struct {
+	Namespace        string        `default:"default" desc:"namespace where is deployed registry-k8s instance" split_words:"true"`
+	ProxyRegistryURL *url.URL      `desc:"url to the proxy registry that handles this domain" split_words:"true"`
+	ExpirePeriod     time.Duration `default:"1m" desc:"period to check expired NSEs" split_words:"true"`
+	ChainCtx         context.Context
+	ClientSet        versioned.Interface
+}
+
 // NewServer creates new registry server based on k8s etcd db storage
-func NewServer(ctx context.Context, ns string, clientSet versioned.Interface, proxyRegistryURL *url.URL, options ...grpc.DialOption) registryserver.Registry {
+func NewServer(config *Config, options ...grpc.DialOption) registryserver.Registry {
 	nseChain := chain.NewNetworkServiceEndpointRegistryServer(
-		expire.NewNetworkServiceEndpointRegistryServer(),
-		etcd.NewNetworkServiceEndpointRegistryServer(ctx, ns, clientSet),
-		proxy.NewNetworkServiceEndpointRegistryServer(proxyRegistryURL),
-		connect.NewNetworkServiceEndpointRegistryServer(ctx, func(ctx context.Context, cc grpc.ClientConnInterface) registry.NetworkServiceEndpointRegistryClient {
+		expire.NewNetworkServiceEndpointRegistryServer(config.ExpirePeriod),
+		etcd.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
+		proxy.NewNetworkServiceEndpointRegistryServer(config.ProxyRegistryURL),
+		connect.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, func(ctx context.Context, cc grpc.ClientConnInterface) registry.NetworkServiceEndpointRegistryClient {
 			return chain.NewNetworkServiceEndpointRegistryClient(
 				registry.NewNetworkServiceEndpointRegistryClient(cc),
 			)
 		}, connect.WithClientDialOptions(options...)),
 	)
 	nsChain := chain.NewNetworkServiceRegistryServer(
-		expire.NewNetworkServiceServer(ctx, adapters.NetworkServiceEndpointServerToClient(nseChain)),
-		etcd.NewNetworkServiceRegistryServer(ctx, ns, clientSet),
-		proxy.NewNetworkServiceRegistryServer(proxyRegistryURL),
-		connect.NewNetworkServiceRegistryServer(ctx, func(ctx context.Context, cc grpc.ClientConnInterface) registry.NetworkServiceRegistryClient {
+		expire.NewNetworkServiceServer(config.ChainCtx, adapters.NetworkServiceEndpointServerToClient(nseChain)),
+		etcd.NewNetworkServiceRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
+		proxy.NewNetworkServiceRegistryServer(config.ProxyRegistryURL),
+		connect.NewNetworkServiceRegistryServer(config.ChainCtx, func(ctx context.Context, cc grpc.ClientConnInterface) registry.NetworkServiceRegistryClient {
 			return chain.NewNetworkServiceRegistryClient(
 				registry.NewNetworkServiceRegistryClient(cc),
 			)
