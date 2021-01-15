@@ -41,70 +41,74 @@ type etcdNSERegistryServer struct {
 }
 
 func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.NetworkServiceEndpoint) (*registry.NetworkServiceEndpoint, error) {
+	resp, err := next.NetworkServiceEndpointRegistryServer(ctx).Register(ctx, request)
+	if err != nil {
+		return nil, err
+	}
 	meta := metav1.ObjectMeta{}
 	if request.Name == "" {
 		meta.GenerateName = "nse-"
 	} else {
 		meta.Name = request.Name
 	}
-	resp, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Create(
+	apiResp, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Create(
 		ctx,
 		&v1.NetworkServiceEndpoint{
 			ObjectMeta: meta,
-			Spec:       *(*v1.NetworkServiceEndpointSpec)(request),
+			Spec:       *(*v1.NetworkServiceEndpointSpec)(resp),
 		},
 		metav1.CreateOptions{},
 	)
 	if apierrors.IsAlreadyExists(err) {
-		resp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(
-			ctx,
-			&v1.NetworkServiceEndpoint{
-				ObjectMeta: meta,
-				Spec:       *(*v1.NetworkServiceEndpointSpec)(request),
-			},
-			metav1.UpdateOptions{},
-		)
+		var exist *v1.NetworkServiceEndpoint
+		exist, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Get(ctx, request.Name, metav1.GetOptions{})
+		if err == nil {
+			exist.Spec = *(*v1.NetworkServiceEndpointSpec)(request)
+			apiResp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(ctx, exist, metav1.UpdateOptions{})
+		}
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	resp.Spec.DeepCopyInto((*v1.NetworkServiceEndpointSpec)(request))
-	return next.NetworkServiceEndpointRegistryServer(ctx).Register(ctx, request)
+	return (*registry.NetworkServiceEndpoint)(&apiResp.Spec), nil
 }
 
 func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
+	list, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).List(s.Context(), metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for i := 0; i < len(list.Items); i++ {
+		item := (*registry.NetworkServiceEndpoint)(&list.Items[i].Spec)
+		if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
+			err := s.Send(item)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	if query.Watch {
 		if err := n.watch(query, s); err != nil && !errors.Is(err, io.EOF) {
 			return err
-		}
-	} else {
-		list, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).List(s.Context(), metav1.ListOptions{})
-		if err != nil {
-			return err
-		}
-		for i := 0; i < len(list.Items); i++ {
-			item := (*registry.NetworkServiceEndpoint)(&list.Items[i].Spec)
-			if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
-				err := s.Send(item)
-				if err != nil {
-					return err
-				}
-			}
 		}
 	}
 	return next.NetworkServiceEndpointRegistryServer(s.Context()).Find(query, s)
 }
 
 func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registry.NetworkServiceEndpoint) (*empty.Empty, error) {
-	err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(
+	resp, err := next.NetworkServiceEndpointRegistryServer(ctx).Unregister(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(
 		ctx,
 		request.Name,
 		metav1.DeleteOptions{})
 	if err != nil {
 		return nil, err
 	}
-	return next.NetworkServiceEndpointRegistryServer(ctx).Unregister(ctx, request)
+	return resp, nil
 }
 
 func (n *etcdNSERegistryServer) watch(query *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
