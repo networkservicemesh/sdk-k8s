@@ -31,7 +31,7 @@ import (
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
-	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/networkservicemesh/sdk/pkg/tools/logger"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/socketpath"
 )
@@ -57,7 +57,7 @@ func NewClient(devicePluginPath string) *Client {
 
 // StartDeviceServer starts device plugin server and returns the name of the corresponding unix socket
 func (c *Client) StartDeviceServer(ctx context.Context, deviceServer pluginapi.DevicePluginServer) (string, error) {
-	logEntry := log.Entry(ctx).WithField("Client", "StartDeviceServer")
+	logEntry := logger.Log(ctx).WithField("Client", "StartDeviceServer")
 
 	socket := uuid.New().String()
 	socketPath := socketpath.SocketPath(path.Join(c.devicePluginPath, socket))
@@ -100,7 +100,7 @@ func (c *Client) StartDeviceServer(ctx context.Context, deviceServer pluginapi.D
 
 // RegisterDeviceServer registers device plugin server using the given request
 func (c *Client) RegisterDeviceServer(ctx context.Context, request *pluginapi.RegisterRequest) error {
-	logEntry := log.Entry(ctx).WithField("Client", "RegisterDeviceServer")
+	logEntry := logger.Log(ctx).WithField("Client", "RegisterDeviceServer")
 
 	socketURL := grpcutils.AddressToURL(socketpath.SocketPath(c.devicePluginSocket))
 	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithInsecure())
@@ -121,7 +121,7 @@ func (c *Client) RegisterDeviceServer(ctx context.Context, request *pluginapi.Re
 
 // MonitorKubeletRestart monitors if kubelet restarts so we need to re register device plugin server
 func (c *Client) MonitorKubeletRestart(ctx context.Context) (chan struct{}, error) {
-	logEntry := log.Entry(ctx).WithField("Client", "MonitorKubeletRestart")
+	logEntry := logger.Log(ctx).WithField("Client", "MonitorKubeletRestart")
 
 	watcher, err := watchOn(c.devicePluginPath)
 	if err != nil {

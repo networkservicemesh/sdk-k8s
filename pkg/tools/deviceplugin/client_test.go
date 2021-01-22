@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/networkservicemesh/sdk/pkg/tools/logger"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/deviceplugin"
@@ -38,6 +40,7 @@ const (
 func TestDevicePluginManager_MonitorKubeletRestart(t *testing.T) {
 	devicePluginPath := path.Join(os.TempDir(), t.Name())
 	devicePluginSocket := path.Join(devicePluginPath, kubeletSocket)
+	ctx := logger.WithLog(context.Background())
 
 	c := deviceplugin.NewClient(devicePluginPath)
 
@@ -45,7 +48,7 @@ func TestDevicePluginManager_MonitorKubeletRestart(t *testing.T) {
 	err := os.MkdirAll(devicePluginPath, os.ModeDir|os.ModePerm)
 	require.NoError(t, err)
 
-	monitorCh, err := c.MonitorKubeletRestart(context.TODO())
+	monitorCh, err := c.MonitorKubeletRestart(ctx)
 	require.NoError(t, err)
 
 	_, err = os.Create(devicePluginSocket)
