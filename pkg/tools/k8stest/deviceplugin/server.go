@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -27,7 +27,7 @@ import (
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
-	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/networkservicemesh/sdk/pkg/tools/logger"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/socketpath"
 )
@@ -44,7 +44,7 @@ func StartRegistrationServer(devicePluginPath string, server *grpc.Server) {
 }
 
 func (rs *registrationServer) Register(ctx context.Context, request *pluginapi.RegisterRequest) (*pluginapi.Empty, error) {
-	logEntry := log.Entry(ctx).WithField("registrationServer", "Register")
+	logEntry := logger.Log(ctx).WithField("registrationServer", "Register")
 
 	socketPath := socketpath.SocketPath(path.Join(rs.devicePluginPath, request.Endpoint))
 	socketURL := grpcutils.AddressToURL(socketPath)

@@ -28,7 +28,7 @@ import (
 	podresources "k8s.io/kubelet/pkg/apis/podresources/v1alpha1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
-	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/networkservicemesh/sdk/pkg/tools/logger"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/socketpath"
 )
@@ -51,7 +51,7 @@ func NewClient(podResourcesPath string) *Client {
 
 // GetPodResourcesListerClient returns a new PodResourcesListerClient
 func (km *Client) GetPodResourcesListerClient(ctx context.Context) (podresources.PodResourcesListerClient, error) {
-	logEntry := log.Entry(ctx).WithField("podresources.Client", "GetPodResourcesListerClient")
+	logEntry := logger.Log(ctx).WithField("podresources.Client", "GetPodResourcesListerClient")
 
 	socketURL := grpcutils.AddressToURL(socketpath.SocketPath(km.podResourcesSocket))
 	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithInsecure())
