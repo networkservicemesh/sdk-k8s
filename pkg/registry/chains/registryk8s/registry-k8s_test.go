@@ -30,9 +30,10 @@ import (
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 
+	"github.com/networkservicemesh/sdk/pkg/tools/sandbox"
+
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/chains/registryk8s"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/fake"
-	"github.com/networkservicemesh/sdk/pkg/tools/sandbox"
 
 	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
 )
@@ -54,10 +55,10 @@ func TestNSMGR_LocalUsecase(t *testing.T) {
 		NetworkServiceNames: []string{"my-service-remote"},
 	}
 
-	_, err := sandbox.NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken, domain.Nodes[0].NSMgr)
+	_, err := domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken)
 	require.NoError(t, err)
 
-	nsc := sandbox.NewClient(ctx, sandbox.GenerateTestToken, domain.Nodes[0].NSMgr.URL)
+	nsc := domain.Nodes[0].NewClient(ctx, sandbox.GenerateTestToken)
 
 	request := &networkservice.NetworkServiceRequest{
 		MechanismPreferences: []*networkservice.Mechanism{
@@ -108,7 +109,7 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 		NetworkServiceNames: []string{"my-service-remote"},
 	}
 
-	_, err := sandbox.NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken, domain.Nodes[0].NSMgr)
+	_, err := domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken)
 	require.NoError(t, err)
 
 	request := &networkservice.NetworkServiceRequest{
@@ -122,7 +123,7 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 		},
 	}
 
-	nsc := sandbox.NewClient(ctx, sandbox.GenerateTestToken, domain.Nodes[1].NSMgr.URL)
+	nsc := domain.Nodes[1].NewClient(ctx, sandbox.GenerateTestToken)
 
 	conn, err := nsc.Request(ctx, request.Clone())
 	require.NoError(t, err)
@@ -146,12 +147,12 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 	require.NotNil(t, e)
 }
 
-func supplyK8sRegistry(ctx context.Context, proxyRegistryURL *url.URL, options ...grpc.DialOption) registryserver.Registry {
+func supplyK8sRegistry(ctx context.Context, expireDuration time.Duration, proxyRegistryURL *url.URL, options ...grpc.DialOption) registryserver.Registry {
 	return registryk8s.NewServer(&registryk8s.Config{
 		ChainCtx:         ctx,
 		Namespace:        "default",
 		ClientSet:        fake.NewSimpleClientset(),
-		ExpirePeriod:     time.Minute,
+		ExpirePeriod:     expireDuration,
 		ProxyRegistryURL: proxyRegistryURL,
 	}, options...)
 }
