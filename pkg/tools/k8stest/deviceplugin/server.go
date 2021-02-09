@@ -27,7 +27,7 @@ import (
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
-	"github.com/networkservicemesh/sdk/pkg/tools/logger"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/socketpath"
 )
@@ -44,32 +44,32 @@ func StartRegistrationServer(devicePluginPath string, server *grpc.Server) {
 }
 
 func (rs *registrationServer) Register(ctx context.Context, request *pluginapi.RegisterRequest) (*pluginapi.Empty, error) {
-	logEntry := logger.Log(ctx).WithField("registrationServer", "Register")
+	logger := log.FromContext(ctx).WithField("registrationServer", "Register")
 
 	socketPath := socketpath.SocketPath(path.Join(rs.devicePluginPath, request.Endpoint))
 	socketURL := grpcutils.AddressToURL(socketPath)
 	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithInsecure())
 	if err != nil {
-		logEntry.Errorf("failed to connect to %v", socketPath.String())
+		logger.Errorf("failed to connect to %v", socketPath.String())
 		return nil, err
 	}
 
 	client := pluginapi.NewDevicePluginClient(conn)
 	receiver, err := client.ListAndWatch(ctx, &pluginapi.Empty{})
 	if err != nil {
-		logEntry.Errorf("failed to ListAndWatch on %v", socketPath.String())
+		logger.Errorf("failed to ListAndWatch on %v", socketPath.String())
 		return nil, err
 	}
 
 	go func() {
-		logEntry.Info("client started")
+		logger.Info("client started")
 		for {
 			response, err := receiver.Recv()
 			if err != nil {
-				logEntry.Infof("client closed: %+v", err)
+				logger.Infof("client closed: %+v", err)
 				return
 			}
-			logEntry.Infof("devices update -> %v", response.Devices)
+			logger.Infof("devices update -> %v", response.Devices)
 		}
 	}()
 

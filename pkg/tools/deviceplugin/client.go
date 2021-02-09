@@ -31,7 +31,7 @@ import (
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
-	"github.com/networkservicemesh/sdk/pkg/tools/logger"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/socketpath"
 )
@@ -57,11 +57,11 @@ func NewClient(devicePluginPath string) *Client {
 
 // StartDeviceServer starts device plugin server and returns the name of the corresponding unix socket
 func (c *Client) StartDeviceServer(ctx context.Context, deviceServer pluginapi.DevicePluginServer) (string, error) {
-	logEntry := logger.Log(ctx).WithField("Client", "StartDeviceServer")
+	logger := log.FromContext(ctx).WithField("Client", "StartDeviceServer")
 
 	socket := uuid.New().String()
 	socketPath := socketpath.SocketPath(path.Join(c.devicePluginPath, socket))
-	logEntry.Infof("socket = %v", socket)
+	logger.Infof("socket = %v", socket)
 	if err := socketpath.SocketCleanup(socketPath); err != nil {
 		return "", err
 	}
@@ -78,29 +78,29 @@ func (c *Client) StartDeviceServer(ctx context.Context, deviceServer pluginapi.D
 	}
 	go func() {
 		if err := <-errCh; err != nil {
-			logEntry.Fatalf("error in device plugin server at %s: %s", socket, err.Error())
+			logger.Fatalf("error in device plugin server at %s: %s", socket, err.Error())
 		}
 	}()
 
 	dialCtx, cancel := context.WithTimeout(ctx, dialTimeoutDefault)
 	defer cancel()
 
-	logEntry.Info("check device server operational")
+	logger.Info("check device server operational")
 	conn, err := grpc.DialContext(dialCtx, socketURL.String(), grpc.WithBlock(), grpc.WithInsecure())
 	if err != nil {
-		logEntry.Errorf("failed to dial kubelet api: %s", err.Error())
+		logger.Errorf("failed to dial kubelet api: %s", err.Error())
 		return "", err
 	}
 	_ = conn.Close()
 
-	logEntry.Info("device server is operational")
+	logger.Info("device server is operational")
 
 	return socket, nil
 }
 
 // RegisterDeviceServer registers device plugin server using the given request
 func (c *Client) RegisterDeviceServer(ctx context.Context, request *pluginapi.RegisterRequest) error {
-	logEntry := logger.Log(ctx).WithField("Client", "RegisterDeviceServer")
+	logger := log.FromContext(ctx).WithField("Client", "RegisterDeviceServer")
 
 	socketURL := grpcutils.AddressToURL(socketpath.SocketPath(c.devicePluginSocket))
 	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithInsecure())
@@ -110,22 +110,22 @@ func (c *Client) RegisterDeviceServer(ctx context.Context, request *pluginapi.Re
 	defer func() { _ = conn.Close() }()
 
 	client := pluginapi.NewRegistrationClient(conn)
-	logEntry.Info("trying to register to device plugin kubelet service")
+	logger.Info("trying to register to device plugin kubelet service")
 	if _, err = client.Register(context.Background(), request); err != nil {
 		return errors.Wrap(err, "cannot register to device plugin kubelet service")
 	}
-	logEntry.Info("register done")
+	logger.Info("register done")
 
 	return nil
 }
 
 // MonitorKubeletRestart monitors if kubelet restarts so we need to re register device plugin server
 func (c *Client) MonitorKubeletRestart(ctx context.Context) (chan struct{}, error) {
-	logEntry := logger.Log(ctx).WithField("Client", "MonitorKubeletRestart")
+	logger := log.FromContext(ctx).WithField("Client", "MonitorKubeletRestart")
 
 	watcher, err := watchOn(c.devicePluginPath)
 	if err != nil {
-		logEntry.Errorf("failed to watch on %v", c.devicePluginPath)
+		logger.Errorf("failed to watch on %v", c.devicePluginPath)
 		return nil, err
 	}
 
@@ -136,23 +136,23 @@ func (c *Client) MonitorKubeletRestart(ctx context.Context) (chan struct{}, erro
 		for {
 			select {
 			case <-ctx.Done():
-				logEntry.Info("end monitoring")
+				logger.Info("end monitoring")
 				return
 			case event, ok := <-watcher.Events:
 				if !ok {
-					logEntry.Info("watcher has been closed")
+					logger.Info("watcher has been closed")
 					return
 				}
 				if event.Name == c.devicePluginSocket && event.Op&fsnotify.Create == fsnotify.Create {
-					logEntry.Warn("kubelet restarts")
+					logger.Warn("kubelet restarts")
 					monitorCh <- struct{}{}
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
-					logEntry.Info("watcher has been closed")
+					logger.Info("watcher has been closed")
 					return
 				}
-				logEntry.Warn(err)
+				logger.Warn(err)
 			}
 		}
 	}()

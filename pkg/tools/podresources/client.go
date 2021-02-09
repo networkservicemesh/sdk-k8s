@@ -28,7 +28,7 @@ import (
 	podresources "k8s.io/kubelet/pkg/apis/podresources/v1alpha1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
-	"github.com/networkservicemesh/sdk/pkg/tools/logger"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/socketpath"
 )
@@ -51,7 +51,7 @@ func NewClient(podResourcesPath string) *Client {
 
 // GetPodResourcesListerClient returns a new PodResourcesListerClient
 func (km *Client) GetPodResourcesListerClient(ctx context.Context) (podresources.PodResourcesListerClient, error) {
-	logEntry := logger.Log(ctx).WithField("podresources.Client", "GetPodResourcesListerClient")
+	logger := log.FromContext(ctx).WithField("podresources.Client", "GetPodResourcesListerClient")
 
 	socketURL := grpcutils.AddressToURL(socketpath.SocketPath(km.podResourcesSocket))
 	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithInsecure())
@@ -59,10 +59,10 @@ func (km *Client) GetPodResourcesListerClient(ctx context.Context) (podresources
 		return nil, errors.Wrap(err, "cannot connect to pod resources kubelet service")
 	}
 
-	logEntry.Info("start pod resources lister client")
+	logger.Info("start pod resources lister client")
 	go func() {
 		<-ctx.Done()
-		logEntry.Info("close pod resources lister client")
+		logger.Info("close pod resources lister client")
 		_ = conn.Close()
 	}()
 
