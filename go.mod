@@ -7,12 +7,14 @@ require (
 	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.1.2
 	github.com/networkservicemesh/api v0.0.0-20210218170701-1a72f1cba074
-	github.com/networkservicemesh/sdk v0.0.0-20210220122417-bab01203bb73
+	github.com/networkservicemesh/sdk v0.0.0-20210221205140-52ca5f7f0cf6
+	github.com/onsi/ginkgo v1.13.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.6.1
 	go.uber.org/goleak v1.1.10
-	google.golang.org/grpc v1.33.2
+	golang.org/x/tools v0.0.0-20200812195022-5ae4c3c160a0 // indirect
+	google.golang.org/grpc v1.35.0
 	google.golang.org/protobuf v1.25.0
 	k8s.io/apimachinery v0.20.1
 	k8s.io/client-go v0.20.1
