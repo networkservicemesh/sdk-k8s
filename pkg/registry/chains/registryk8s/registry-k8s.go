@@ -47,7 +47,7 @@ type Config struct {
 // NewServer creates new registry server based on k8s etcd db storage
 func NewServer(config *Config, options ...grpc.DialOption) registryserver.Registry {
 	nseChain := chain.NewNetworkServiceEndpointRegistryServer(
-		expire.NewNetworkServiceEndpointRegistryServer(config.ExpirePeriod),
+		expire.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.ExpirePeriod),
 		etcd.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
 		proxy.NewNetworkServiceEndpointRegistryServer(config.ProxyRegistryURL),
 		connect.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, func(ctx context.Context, cc grpc.ClientConnInterface) registry.NetworkServiceEndpointRegistryClient {
