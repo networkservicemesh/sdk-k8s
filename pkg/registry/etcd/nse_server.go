@@ -123,7 +123,10 @@ func (n *etcdNSERegistryServer) watch(query *registry.NetworkServiceEndpointQuer
 		case <-s.Context().Done():
 			return s.Context().Err()
 		case event := <-watcher.ResultChan():
-			model := event.Object.(*v1.NetworkServiceEndpoint)
+			model, ok := event.Object.(*v1.NetworkServiceEndpoint)
+			if !ok {
+				continue
+			}
 			item := (*registry.NetworkServiceEndpoint)(&model.Spec)
 			if event.Type == watch.Deleted {
 				item.ExpirationTime.Seconds = -1
