@@ -21,18 +21,19 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/networkservicemesh/api/pkg/api/registry"
 	"google.golang.org/grpc"
 
-	"github.com/networkservicemesh/sdk-k8s/pkg/registry/etcd"
-	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
-
+	"github.com/networkservicemesh/api/pkg/api/registry"
 	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
+	"github.com/networkservicemesh/sdk/pkg/registry/common/checkid"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/connect"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/expire"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/proxy"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/chain"
+
+	"github.com/networkservicemesh/sdk-k8s/pkg/registry/etcd"
+	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
 )
 
 // Config contains configuration parameters for registry.Registry based on k8s client
@@ -48,6 +49,7 @@ type Config struct {
 func NewServer(config *Config, options ...grpc.DialOption) registryserver.Registry {
 	nseChain := chain.NewNetworkServiceEndpointRegistryServer(
 		expire.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.ExpirePeriod),
+		checkid.NewNetworkServiceEndpointRegistryServer(),
 		etcd.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
 		proxy.NewNetworkServiceEndpointRegistryServer(config.ProxyRegistryURL),
 		connect.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, func(ctx context.Context, cc grpc.ClientConnInterface) registry.NetworkServiceEndpointRegistryClient {
