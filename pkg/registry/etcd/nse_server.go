@@ -22,16 +22,16 @@ import (
 	"io"
 
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/networkservicemesh/api/pkg/api/registry"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/networkservicemesh/api/pkg/api/registry"
+	"github.com/networkservicemesh/sdk/pkg/registry/core/next"
+	"github.com/networkservicemesh/sdk/pkg/tools/matchutils"
 
 	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
-	"github.com/networkservicemesh/sdk/pkg/registry/core/next"
-	"github.com/networkservicemesh/sdk/pkg/tools/matchutils"
 )
 
 type etcdNSERegistryServer struct {

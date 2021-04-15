@@ -22,33 +22,36 @@ import (
 	"testing"
 	"time"
 
-	"github.com/networkservicemesh/api/pkg/api/networkservice"
-	"github.com/networkservicemesh/api/pkg/api/networkservice/mechanisms/cls"
-	kernelmech "github.com/networkservicemesh/api/pkg/api/networkservice/mechanisms/kernel"
-	"github.com/networkservicemesh/api/pkg/api/registry"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 
+	"github.com/networkservicemesh/api/pkg/api/networkservice"
+	"github.com/networkservicemesh/api/pkg/api/networkservice/mechanisms/cls"
+	kernelmech "github.com/networkservicemesh/api/pkg/api/networkservice/mechanisms/kernel"
+	"github.com/networkservicemesh/api/pkg/api/registry"
+	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
 	"github.com/networkservicemesh/sdk/pkg/tools/sandbox"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/chains/registryk8s"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/fake"
-
-	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
 )
 
+// This is started as a daemon in k8s.io/klog/v2 init()
+var ignoreKLogDaemon = goleak.IgnoreTopFunction("k8s.io/klog/v2.(*loggingT).flushDaemon")
+
 func TestNSMGR_LocalUsecase(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	t.Cleanup(func() { goleak.VerifyNone(t, ignoreKLogDaemon) })
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
+
 	domain := sandbox.NewBuilder(t).
 		SetNodesCount(1).
 		SetContext(ctx).
 		SetRegistrySupplier(supplyK8sRegistry).
 		SetRegistryProxySupplier(nil).
 		Build()
-	defer domain.Cleanup()
 
 	nseReg := &registry.NetworkServiceEndpoint{
 		Name:                "final-endpoint",
@@ -85,6 +88,7 @@ func TestNSMGR_LocalUsecase(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, conn2)
 	require.Equal(t, 5, len(conn2.Path.PathSegments))
+
 	// Close.
 
 	e, err := nsc.Close(ctx, conn)
@@ -93,16 +97,17 @@ func TestNSMGR_LocalUsecase(t *testing.T) {
 }
 
 func TestNSMGR_RemoteUsecase(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	t.Cleanup(func() { goleak.VerifyNone(t, ignoreKLogDaemon) })
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
+
 	domain := sandbox.NewBuilder(t).
 		SetNodesCount(2).
 		SetContext(ctx).
 		SetRegistrySupplier(supplyK8sRegistry).
 		SetRegistryProxySupplier(nil).
 		Build()
-	defer domain.Cleanup()
 
 	nseReg := &registry.NetworkServiceEndpoint{
 		Name:                "final-endpoint",
