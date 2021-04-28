@@ -29,7 +29,6 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/registry/common/connect"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/expire"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/proxy"
-	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/chain"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/etcd"
@@ -59,7 +58,6 @@ func NewServer(config *Config, options ...grpc.DialOption) registryserver.Regist
 		}, connect.WithClientDialOptions(options...)),
 	)
 	nsChain := chain.NewNetworkServiceRegistryServer(
-		expire.NewNetworkServiceServer(config.ChainCtx, adapters.NetworkServiceEndpointServerToClient(nseChain)),
 		etcd.NewNetworkServiceRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
 		proxy.NewNetworkServiceRegistryServer(config.ProxyRegistryURL),
 		connect.NewNetworkServiceRegistryServer(config.ChainCtx, func(ctx context.Context, cc grpc.ClientConnInterface) registry.NetworkServiceRegistryClient {
