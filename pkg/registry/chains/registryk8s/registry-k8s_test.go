@@ -58,7 +58,10 @@ func TestNSMGR_LocalUsecase(t *testing.T) {
 		NetworkServiceNames: []string{"my-service-remote"},
 	}
 
-	_, err := domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken)
+	_, err := domain.Nodes[0].NSRegistryClient.Register(ctx, &registry.NetworkService{Name: "my-service-remote"})
+	require.NoError(t, err)
+
+	_, err = domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken)
 	require.NoError(t, err)
 
 	nsc := domain.Nodes[0].NewClient(ctx, sandbox.GenerateTestToken)
@@ -114,7 +117,10 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 		NetworkServiceNames: []string{"my-service-remote"},
 	}
 
-	_, err := domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken)
+	_, err := domain.Nodes[0].NSRegistryClient.Register(ctx, &registry.NetworkService{Name: "my-service-remote"})
+	require.NoError(t, err)
+
+	_, err = domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken)
 	require.NoError(t, err)
 
 	request := &networkservice.NetworkServiceRequest{
