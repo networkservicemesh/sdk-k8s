@@ -7,7 +7,7 @@ require (
 	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.1.2
 	github.com/networkservicemesh/api v0.0.0-20210502014900-961930476ee1
-	github.com/networkservicemesh/sdk v0.0.0-20210507211426-1c92df8bdda4
+	github.com/networkservicemesh/sdk v0.0.0-20210509175954-8857d2bfe004
 	github.com/onsi/ginkgo v1.13.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.7.0
