@@ -29,6 +29,7 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/registry/common/connect"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/expire"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/proxy"
+	"github.com/networkservicemesh/sdk/pkg/registry/common/serialize"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/chain"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/etcd"
@@ -47,6 +48,7 @@ type Config struct {
 // NewServer creates new registry server based on k8s etcd db storage
 func NewServer(config *Config, options ...grpc.DialOption) registryserver.Registry {
 	nseChain := chain.NewNetworkServiceEndpointRegistryServer(
+		serialize.NewNetworkServiceEndpointRegistryServer(),
 		expire.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.ExpirePeriod),
 		checkid.NewNetworkServiceEndpointRegistryServer(),
 		etcd.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
@@ -58,6 +60,7 @@ func NewServer(config *Config, options ...grpc.DialOption) registryserver.Regist
 		}, connect.WithClientDialOptions(options...)),
 	)
 	nsChain := chain.NewNetworkServiceRegistryServer(
+		serialize.NewNetworkServiceRegistryServer(),
 		etcd.NewNetworkServiceRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
 		proxy.NewNetworkServiceRegistryServer(config.ProxyRegistryURL),
 		connect.NewNetworkServiceRegistryServer(config.ChainCtx, func(ctx context.Context, cc grpc.ClientConnInterface) registry.NetworkServiceRegistryClient {
