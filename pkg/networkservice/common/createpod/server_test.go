@@ -34,6 +34,12 @@ import (
 	"github.com/networkservicemesh/sdk-k8s/pkg/networkservice/common/createpod"
 )
 
+const (
+	testNamespace = "pod-ns-name"
+	nodeName1     = "node1"
+	nodeName2     = "node2"
+)
+
 func TestCreatePod_RepeatedRequest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -42,15 +48,12 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 
 	podTemplate := defaultPodTemplate()
 
-	namespace := "pod-ns-name"
-
 	server := next.NewNetworkServiceServer(
 		adapters.NewClientToServer(clientinfo.NewClient()),
-		createpod.NewServer(clientSet, podTemplate, createpod.WithNamespace(namespace)),
+		createpod.NewServer(clientSet, podTemplate, createpod.WithNamespace(testNamespace)),
 	)
 
-	nodeName := "node1"
-	err := os.Setenv("NODE_NAME", nodeName)
+	err := os.Setenv("NODE_NAME", nodeName1)
 	require.NoError(t, err)
 
 	// first request: should succeed
@@ -65,20 +68,20 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 		Connection: &networkservice.Connection{},
 	})
 	require.Error(t, err)
-	require.Equal(t, "pods \""+podTemplate.ObjectMeta.Name+"-nodeName="+nodeName+"\" already exists", err.Error())
+	require.Equal(t, "pods \""+podTemplate.ObjectMeta.Name+"-nodeName="+nodeName1+"\" already exists", err.Error())
 
-	podList, err := clientSet.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	podList, err := clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(podList.Items))
 	pod := podList.Items[0]
 
 	want := podTemplate.DeepCopy()
-	want.Spec.NodeName = nodeName
-	want.Spec.Containers[0].Env = []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName}}
-	want.Spec.Containers[1].Env = []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName}}
+	want.Spec.NodeName = nodeName1
+	want.Spec.Containers[0].Env = []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName1}}
+	want.Spec.Containers[1].Env = []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName1}}
 	require.Equal(t, pod.Spec, want.Spec)
 
-	err = clientSet.CoreV1().Pods(namespace).Delete(ctx, pod.ObjectMeta.Name, metav1.DeleteOptions{})
+	err = clientSet.CoreV1().Pods(testNamespace).Delete(ctx, pod.ObjectMeta.Name, metav1.DeleteOptions{})
 	require.NoError(t, err)
 
 	// third request: should succeed because the pod has died
@@ -97,14 +100,11 @@ func TestCreatePod_TwoNodes(t *testing.T) {
 
 	podTemplate := defaultPodTemplate()
 
-	namespace := "pod-ns-name"
-
 	server := next.NewNetworkServiceServer(
 		adapters.NewClientToServer(clientinfo.NewClient()),
-		createpod.NewServer(clientSet, podTemplate, createpod.WithNamespace(namespace)),
+		createpod.NewServer(clientSet, podTemplate, createpod.WithNamespace(testNamespace)),
 	)
 
-	nodeName1 := "node1"
 	err := os.Setenv("NODE_NAME", nodeName1)
 	require.NoError(t, err)
 
@@ -114,7 +114,6 @@ func TestCreatePod_TwoNodes(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, "cannot provide required networkservice", err.Error())
 
-	nodeName2 := "node2"
 	err = os.Setenv("NODE_NAME", nodeName2)
 	require.NoError(t, err)
 
@@ -124,7 +123,7 @@ func TestCreatePod_TwoNodes(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, "cannot provide required networkservice", err.Error())
 
-	podList, err := clientSet.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	podList, err := clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 2, len(podList.Items))
 	require.Equal(t, nodeName1, podList.Items[0].Spec.NodeName)
