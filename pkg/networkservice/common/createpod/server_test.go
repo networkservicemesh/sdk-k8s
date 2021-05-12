@@ -63,7 +63,7 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 		Connection: &networkservice.Connection{},
 	})
 	require.Error(t, err)
-	require.Equal(t, "pods \""+podTemplate.ObjectMeta.Name+"\" already exists", err.Error())
+	require.Equal(t, "pods \""+podTemplate.ObjectMeta.Name+"-nodeName="+nodeName+"\" already exists", err.Error())
 
 	podList, err := clientSet.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)

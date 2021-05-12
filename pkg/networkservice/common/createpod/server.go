@@ -56,6 +56,7 @@ func (s *createPodServer) Request(ctx context.Context, request *networkservice.N
 	}
 
 	podTemplate := s.podTemplate.DeepCopy()
+	podTemplate.ObjectMeta.Name = podTemplate.ObjectMeta.Name + "-nodeName=" + nodeName
 	podTemplate.Spec.NodeName = nodeName
 	for i := range podTemplate.Spec.Containers {
 		podTemplate.Spec.Containers[i].Env = append(podTemplate.Spec.Containers[i].Env, corev1.EnvVar{
