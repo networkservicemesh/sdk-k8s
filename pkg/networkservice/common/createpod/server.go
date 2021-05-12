@@ -39,7 +39,10 @@ type createPodServer struct {
 	namespace   string
 }
 
-// NewServer - returns a new server chain element that notifies about long time periods without active requests
+// NewServer - returns a new server chain element that creates new pods using provided template.
+//
+// Pods are created on the node with a name specified by key "NodeNameKey" in request labels
+// (this label is expected to be filled by clientinfo client).
 func NewServer(client kubernetes.Interface, podTemplate *corev1.Pod, namespace string) networkservice.NetworkServiceServer {
 	s := &createPodServer{
 		podTemplate: podTemplate.DeepCopy(),

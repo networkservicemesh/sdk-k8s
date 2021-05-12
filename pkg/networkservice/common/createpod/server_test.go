@@ -53,12 +53,14 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 	err := os.Setenv("NODE_NAME", nodeName)
 	require.NoError(t, err)
 
+	// first request: should succeed
 	_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
 		Connection: &networkservice.Connection{},
 	})
 	require.Error(t, err)
 	require.Equal(t, "cannot provide required networkservice", err.Error())
 
+	// second request: should fail
 	_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
 		Connection: &networkservice.Connection{},
 	})
@@ -79,6 +81,7 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 	err = clientSet.CoreV1().Pods(namespace).Delete(ctx, pod.ObjectMeta.Name, metav1.DeleteOptions{})
 	require.NoError(t, err)
 
+	// third request: should succeed because the pod has died
 	_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
 		Connection: &networkservice.Connection{},
 	})
