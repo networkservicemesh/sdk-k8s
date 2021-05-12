@@ -34,21 +34,32 @@ const (
 )
 
 type createPodServer struct {
-	client      kubernetes.Interface
-	podTemplate *corev1.Pod
-	namespace   string
+	client        kubernetes.Interface
+	podTemplate   *corev1.Pod
+	namespace     string
+	labelsKey     string
+	nameGenerator func(templateName, nodeName string) string
 }
 
 // NewServer - returns a new server chain element that creates new pods using provided template.
 //
 // Pods are created on the node with a name specified by key "NodeNameKey" in request labels
 // (this label is expected to be filled by clientinfo client).
-func NewServer(client kubernetes.Interface, podTemplate *corev1.Pod, namespace string) networkservice.NetworkServiceServer {
+func NewServer(client kubernetes.Interface, podTemplate *corev1.Pod, options ...Option) networkservice.NetworkServiceServer {
 	s := &createPodServer{
 		podTemplate: podTemplate.DeepCopy(),
 		client:      client,
-		namespace:   namespace,
+		namespace:   "default",
+		labelsKey:   "NSM_LABELS",
+		nameGenerator: func(templateName, nodeName string) string {
+			return templateName + "-nodeName=" + nodeName
+		},
 	}
+
+	for _, opt := range options {
+		opt(s)
+	}
+
 	return s
 }
 
@@ -59,11 +70,11 @@ func (s *createPodServer) Request(ctx context.Context, request *networkservice.N
 	}
 
 	podTemplate := s.podTemplate.DeepCopy()
-	podTemplate.ObjectMeta.Name = podTemplate.ObjectMeta.Name + "-nodeName=" + nodeName
+	podTemplate.ObjectMeta.Name = s.nameGenerator(podTemplate.ObjectMeta.Name, nodeName)
 	podTemplate.Spec.NodeName = nodeName
 	for i := range podTemplate.Spec.Containers {
 		podTemplate.Spec.Containers[i].Env = append(podTemplate.Spec.Containers[i].Env, corev1.EnvVar{
-			Name:  "NSM_LABELS",
+			Name:  s.labelsKey,
 			Value: "nodeName: " + nodeName,
 		})
 	}

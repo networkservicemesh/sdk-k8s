@@ -46,7 +46,7 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 
 	server := next.NewNetworkServiceServer(
 		adapters.NewClientToServer(clientinfo.NewClient()),
-		createpod.NewServer(clientSet, podTemplate, namespace),
+		createpod.NewServer(clientSet, podTemplate, createpod.WithNamespace(namespace)),
 	)
 
 	nodeName := "node1"
@@ -101,7 +101,7 @@ func TestCreatePod_TwoNodes(t *testing.T) {
 
 	server := next.NewNetworkServiceServer(
 		adapters.NewClientToServer(clientinfo.NewClient()),
-		createpod.NewServer(clientSet, podTemplate, namespace),
+		createpod.NewServer(clientSet, podTemplate, createpod.WithNamespace(namespace)),
 	)
 
 	nodeName1 := "node1"
