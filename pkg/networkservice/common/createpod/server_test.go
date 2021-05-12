@@ -41,6 +41,9 @@ func TestCreatePod(t *testing.T) {
 	clientSet := fake.NewSimpleClientset()
 
 	podTemplate := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "PodName",
+		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
@@ -70,28 +73,31 @@ func TestCreatePod(t *testing.T) {
 		Connection: &networkservice.Connection{},
 	})
 	require.Error(t, err)
+	require.Equal(t, "cannot provide required networkservice", err.Error())
+
+	_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
+		Connection: &networkservice.Connection{},
+	})
+	require.Error(t, err)
+	require.Equal(t, "pods \""+podTemplate.ObjectMeta.Name+"\" already exists", err.Error())
 
 	podList, err := clientSet.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(podList.Items))
 	pod := podList.Items[0]
 
-	want := corev1.Pod{
-		Spec: corev1.PodSpec{
-			NodeName: nodeName,
-			Containers: []corev1.Container{
-				{
-					Name:  "my-container-1",
-					Image: "my-image-1",
-					Env:   []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName}},
-				},
-				{
-					Name:  "my-container-2",
-					Image: "my-image-2",
-					Env:   []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName}},
-				},
-			},
-		},
-	}
+	want := podTemplate.DeepCopy()
+	want.Spec.NodeName = nodeName
+	want.Spec.Containers[0].Env = []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName}}
+	want.Spec.Containers[1].Env = []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName}}
 	require.Equal(t, pod.Spec, want.Spec)
+
+	err = clientSet.CoreV1().Pods(namespace).Delete(ctx, pod.ObjectMeta.Name, metav1.DeleteOptions{})
+	require.NoError(t, err)
+
+	_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
+		Connection: &networkservice.Connection{},
+	})
+	require.Error(t, err)
+	require.Equal(t, "cannot provide required networkservice", err.Error())
 }
