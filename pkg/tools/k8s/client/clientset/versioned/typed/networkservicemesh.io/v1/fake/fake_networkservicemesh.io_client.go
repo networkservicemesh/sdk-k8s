@@ -23,9 +23,10 @@
 package fake
 
 import (
-	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/typed/networkservicemesh.io/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
+
+	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/typed/networkservicemesh.io/v1"
 )
 
 type FakeNetworkservicemeshV1 struct {
