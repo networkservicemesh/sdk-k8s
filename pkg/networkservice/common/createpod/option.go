@@ -37,7 +37,7 @@ func WithLabelsKey(labelsKey string) Option {
 }
 
 // WithNameGenerator sets function to be used for pod name generation.
-// Default behavior is to append "-nodeName=<nodeName>" to the template name.
+// Default behavior is to append "--on-node--<nodeName>" to the template name.
 func WithNameGenerator(nameGenerator func(templateName, nodeName string) string) Option {
 	return func(t *createPodServer) {
 		t.nameGenerator = nameGenerator
