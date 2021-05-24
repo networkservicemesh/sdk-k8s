@@ -52,7 +52,7 @@ func NewServer(client kubernetes.Interface, podTemplate *corev1.Pod, options ...
 		namespace:   "default",
 		labelsKey:   "NSM_LABELS",
 		nameGenerator: func(templateName, nodeName string) string {
-			return templateName + "-nodeName=" + nodeName
+			return templateName + "--on-node--" + nodeName
 		},
 	}
 
