@@ -19,6 +19,7 @@ jobs:
           - cmd-exclude-prefixes-k8s
           - cmd-forwarder-sriov
           - cmd-registry-k8s
+          - cmd-nse-supplier-k8s
     name: Update ${{ matrix.repository }}
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.actor == 'nsmbot' || github.ref == 'refs/heads/main' }}
