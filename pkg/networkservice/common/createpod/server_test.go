@@ -19,17 +19,20 @@ package createpod_test
 import (
 	"context"
 	"os"
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/networkservicemesh/api/pkg/api/networkservice"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/common/clientinfo"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/core/adapters"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/core/next"
-	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/networkservice/common/createpod"
 )
@@ -48,9 +51,16 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 
 	podTemplate := defaultPodTemplate()
 
+	counter := atomic.Int32{}
+
 	server := next.NewNetworkServiceServer(
 		adapters.NewClientToServer(clientinfo.NewClient()),
-		createpod.NewServer(clientSet, podTemplate, createpod.WithNamespace(testNamespace)),
+		createpod.NewServer(ctx, clientSet, podTemplate,
+			createpod.WithNamespace(testNamespace),
+			createpod.WithNameGenerator(func(templateName, nodeName string) string {
+				return templateName + strconv.Itoa(int(counter.Add(1)))
+			}),
+		),
 	)
 
 	err := os.Setenv("NODE_NAME", nodeName1)
@@ -61,19 +71,19 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 		Connection: &networkservice.Connection{},
 	})
 	require.Error(t, err)
-	require.Equal(t, "cannot provide required networkservice", err.Error())
+	require.Equal(t, "cannot provide required networkservice: local endpoint created as PodName1", err.Error())
 
 	// second request: should fail
 	_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
 		Connection: &networkservice.Connection{},
 	})
 	require.Error(t, err)
-	require.Equal(t, "pods \""+podTemplate.ObjectMeta.Name+"--on-node--"+nodeName1+"\" already exists", err.Error())
+	require.Equal(t, "cannot provide required networkservice: local endpoint already exists", err.Error())
 
 	podList, err := clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(podList.Items))
-	pod := podList.Items[0]
+	pod := podList.Items[0].DeepCopy()
 
 	want := podTemplate.DeepCopy()
 	want.Spec.NodeName = nodeName1
@@ -81,15 +91,26 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 	want.Spec.Containers[1].Env = []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName1}}
 	require.Equal(t, pod.Spec, want.Spec)
 
-	err = clientSet.CoreV1().Pods(testNamespace).Delete(ctx, pod.ObjectMeta.Name, metav1.DeleteOptions{})
+	pod.Status.Phase = "Succeeded"
+	_, err = clientSet.CoreV1().Pods(testNamespace).UpdateStatus(ctx, pod, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
-	// third request: should succeed because the pod has died
-	_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
-		Connection: &networkservice.Connection{},
-	})
-	require.Error(t, err)
-	require.Equal(t, "cannot provide required networkservice", err.Error())
+	require.Eventually(t, func() bool {
+		// third request: should succeed as soon as the server gets pod deletion event
+		_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
+			Connection: &networkservice.Connection{},
+		})
+		require.Error(t, err)
+		return err.Error() == "cannot provide required networkservice: local endpoint created as PodName2"
+	}, time.Millisecond*100, time.Millisecond*10)
+
+	podList, err = clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return len(podList.Items) == 1
+	}, time.Millisecond*100, time.Millisecond*5)
+	pod2 := podList.Items[0].DeepCopy()
+	require.NotEqual(t, pod.Name, pod2.Name, "new pod wasn't created")
 }
 
 func TestCreatePod_TwoNodes(t *testing.T) {
@@ -100,9 +121,16 @@ func TestCreatePod_TwoNodes(t *testing.T) {
 
 	podTemplate := defaultPodTemplate()
 
+	counter := atomic.Int32{}
+
 	server := next.NewNetworkServiceServer(
 		adapters.NewClientToServer(clientinfo.NewClient()),
-		createpod.NewServer(clientSet, podTemplate, createpod.WithNamespace(testNamespace)),
+		createpod.NewServer(ctx, clientSet, podTemplate,
+			createpod.WithNamespace(testNamespace),
+			createpod.WithNameGenerator(func(templateName, nodeName string) string {
+				return templateName + strconv.Itoa(int(counter.Add(1)))
+			}),
+		),
 	)
 
 	err := os.Setenv("NODE_NAME", nodeName1)
@@ -112,7 +140,7 @@ func TestCreatePod_TwoNodes(t *testing.T) {
 		Connection: &networkservice.Connection{},
 	})
 	require.Error(t, err)
-	require.Equal(t, "cannot provide required networkservice", err.Error())
+	require.Equal(t, "cannot provide required networkservice: local endpoint created as PodName1", err.Error())
 
 	err = os.Setenv("NODE_NAME", nodeName2)
 	require.NoError(t, err)
@@ -121,7 +149,7 @@ func TestCreatePod_TwoNodes(t *testing.T) {
 		Connection: &networkservice.Connection{},
 	})
 	require.Error(t, err)
-	require.Equal(t, "cannot provide required networkservice", err.Error())
+	require.Equal(t, "cannot provide required networkservice: local endpoint created as PodName2", err.Error())
 
 	podList, err := clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)
