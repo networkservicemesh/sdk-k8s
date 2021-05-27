@@ -57,7 +57,7 @@ func NewServer(config *Config, options ...grpc.DialOption) registryserver.Regist
 			return chain.NewNetworkServiceEndpointRegistryClient(
 				registry.NewNetworkServiceEndpointRegistryClient(cc),
 			)
-		}, connect.WithClientDialOptions(options...)),
+		}, options...),
 	)
 	nsChain := chain.NewNetworkServiceRegistryServer(
 		serialize.NewNetworkServiceRegistryServer(),
@@ -67,7 +67,7 @@ func NewServer(config *Config, options ...grpc.DialOption) registryserver.Regist
 			return chain.NewNetworkServiceRegistryClient(
 				registry.NewNetworkServiceRegistryClient(cc),
 			)
-		}, connect.WithClientDialOptions(options...)),
+		}, options...),
 	)
 
 	return registryserver.NewServer(nsChain, nseChain)
