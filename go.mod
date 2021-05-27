@@ -6,8 +6,8 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.1.2
-	github.com/networkservicemesh/api v0.0.0-20210523193133-30a6f075c760
-	github.com/networkservicemesh/sdk v0.0.0-20210527120029-6360c002e693
+	github.com/networkservicemesh/api v0.0.0-20210527182901-ea452d7e044c
+	github.com/networkservicemesh/sdk v0.0.0-20210527183435-61e898692e85
 	github.com/onsi/ginkgo v1.13.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.7.0
