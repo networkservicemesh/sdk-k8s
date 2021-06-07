@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	nodeNameKey = "NodeNameKey"
+	nodeNameKey = "nodeName"
 )
 
 type createPodServer struct {
@@ -110,7 +110,7 @@ func (s *createPodServer) monitorCompletedPods(w watch.Interface) {
 func (s *createPodServer) Request(ctx context.Context, request *networkservice.NetworkServiceRequest) (*networkservice.Connection, error) {
 	nodeName := request.GetConnection().GetLabels()[nodeNameKey]
 	if nodeName == "" {
-		return nil, errors.New("NodeNameKey not set")
+		return nil, errors.New("nodeName label is not set")
 	}
 
 	ni, _ := s.nodeMap.LoadOrStore(nodeName, &nodeInfo{})
