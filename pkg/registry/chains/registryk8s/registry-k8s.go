@@ -23,7 +23,6 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/networkservicemesh/api/pkg/api/registry"
 	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/checkid"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/connect"
@@ -46,28 +45,20 @@ type Config struct {
 }
 
 // NewServer creates new registry server based on k8s etcd db storage
-func NewServer(config *Config, options ...grpc.DialOption) registryserver.Registry {
+func NewServer(config *Config, dialOptions ...grpc.DialOption) registryserver.Registry {
 	nseChain := chain.NewNetworkServiceEndpointRegistryServer(
 		serialize.NewNetworkServiceEndpointRegistryServer(),
 		expire.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.ExpirePeriod),
 		checkid.NewNetworkServiceEndpointRegistryServer(),
 		etcd.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
 		proxy.NewNetworkServiceEndpointRegistryServer(config.ProxyRegistryURL),
-		connect.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, func(ctx context.Context, cc grpc.ClientConnInterface) registry.NetworkServiceEndpointRegistryClient {
-			return chain.NewNetworkServiceEndpointRegistryClient(
-				registry.NewNetworkServiceEndpointRegistryClient(cc),
-			)
-		}, options...),
+		connect.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, connect.WithDialOptions(dialOptions...)),
 	)
 	nsChain := chain.NewNetworkServiceRegistryServer(
 		serialize.NewNetworkServiceRegistryServer(),
 		etcd.NewNetworkServiceRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
 		proxy.NewNetworkServiceRegistryServer(config.ProxyRegistryURL),
-		connect.NewNetworkServiceRegistryServer(config.ChainCtx, func(ctx context.Context, cc grpc.ClientConnInterface) registry.NetworkServiceRegistryClient {
-			return chain.NewNetworkServiceRegistryClient(
-				registry.NewNetworkServiceRegistryClient(cc),
-			)
-		}, options...),
+		connect.NewNetworkServiceRegistryServer(config.ChainCtx, connect.WithDialOptions(dialOptions...)),
 	)
 
 	return registryserver.NewServer(nsChain, nseChain)
