@@ -6,15 +6,14 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.1.2
-	github.com/networkservicemesh/api v0.0.0-20210527182901-ea452d7e044c
-	github.com/networkservicemesh/sdk v0.0.0-20210604144115-6bac2f97d499
+	github.com/networkservicemesh/api v0.0.0-20210607090113-57f36f2c295b
+	github.com/networkservicemesh/sdk v0.0.0-20210607113713-cc4ab6a9c675
 	github.com/onsi/ginkgo v1.13.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
-	golang.org/x/tools v0.0.0-20200812195022-5ae4c3c160a0 // indirect
 	google.golang.org/grpc v1.35.0
 	google.golang.org/protobuf v1.25.0
 	k8s.io/api v0.20.1
