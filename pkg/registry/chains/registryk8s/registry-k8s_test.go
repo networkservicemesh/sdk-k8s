@@ -46,23 +46,23 @@ func TestNSMGR_LocalUsecase(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	domain := sandbox.NewBuilder(t).
+	domain := sandbox.NewBuilder(ctx, t).
 		SetNodesCount(1).
-		SetContext(ctx).
 		SetRegistrySupplier(supplyK8sRegistry).
 		SetRegistryProxySupplier(nil).
 		Build()
+
+	nsRegistryClient := domain.NewNSRegistryClient(ctx, sandbox.GenerateTestToken)
 
 	nseReg := &registry.NetworkServiceEndpoint{
 		Name:                "final-endpoint",
 		NetworkServiceNames: []string{"my-service-remote"},
 	}
 
-	_, err := domain.Nodes[0].NSRegistryClient.Register(ctx, &registry.NetworkService{Name: "my-service-remote"})
+	_, err := nsRegistryClient.Register(ctx, &registry.NetworkService{Name: "my-service-remote"})
 	require.NoError(t, err)
 
-	_, err = domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken)
-	require.NoError(t, err)
+	domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken)
 
 	nsc := domain.Nodes[0].NewClient(ctx, sandbox.GenerateTestToken)
 
@@ -105,23 +105,23 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	domain := sandbox.NewBuilder(t).
+	domain := sandbox.NewBuilder(ctx, t).
 		SetNodesCount(2).
-		SetContext(ctx).
 		SetRegistrySupplier(supplyK8sRegistry).
 		SetRegistryProxySupplier(nil).
 		Build()
+
+	nsRegistryClient := domain.NewNSRegistryClient(ctx, sandbox.GenerateTestToken)
 
 	nseReg := &registry.NetworkServiceEndpoint{
 		Name:                "final-endpoint",
 		NetworkServiceNames: []string{"my-service-remote"},
 	}
 
-	_, err := domain.Nodes[0].NSRegistryClient.Register(ctx, &registry.NetworkService{Name: "my-service-remote"})
+	_, err := nsRegistryClient.Register(ctx, &registry.NetworkService{Name: "my-service-remote"})
 	require.NoError(t, err)
 
-	_, err = domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken)
-	require.NoError(t, err)
+	domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken)
 
 	request := &networkservice.NetworkServiceRequest{
 		MechanismPreferences: []*networkservice.Mechanism{
