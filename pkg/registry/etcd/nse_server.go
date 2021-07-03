@@ -81,6 +81,9 @@ func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery
 	}
 	for i := 0; i < len(list.Items); i++ {
 		item := (*registry.NetworkServiceEndpoint)(&list.Items[i].Spec)
+		if item.Name == "" {
+			item.Name = list.Items[i].Name
+		}
 		if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
 			err := s.Send(item)
 			if err != nil {

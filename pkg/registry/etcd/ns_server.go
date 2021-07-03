@@ -104,6 +104,9 @@ func (n *etcdNSRegistryServer) Find(query *registry.NetworkServiceQuery, s regis
 	}
 	for i := 0; i < len(list.Items); i++ {
 		item := (*registry.NetworkService)(&list.Items[i].Spec)
+		if item.Name == "" {
+			item.Name = list.Items[i].Name
+		}
 		if matchutils.MatchNetworkServices(query.NetworkService, item) {
 			err := s.Send(item)
 			if err != nil {

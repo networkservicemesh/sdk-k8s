@@ -19,11 +19,16 @@ package etcd_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/networkservicemesh/api/pkg/api/registry"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/etcd"
+	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/fake"
 )
 
@@ -33,4 +38,33 @@ func Test_NSReRegister(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.Register(context.Background(), &registry.NetworkService{Name: "ns-1", Payload: "IP"})
 	require.NoError(t, err)
+}
+
+func Test_K8sNERegistry_ShouldMatchMetadataToName(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	var myClientset = fake.NewSimpleClientset()
+
+	_, err := myClientset.NetworkservicemeshV1().NetworkServices("default").Create(ctx, &v1.NetworkService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ns-1",
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	s := etcd.NewNetworkServiceRegistryServer(ctx, "default", myClientset)
+	c := adapters.NetworkServiceServerToClient(s)
+
+	stream, err := c.Find(ctx, &registry.NetworkServiceQuery{
+		NetworkService: &registry.NetworkService{
+			Name: "ns-1",
+		},
+	})
+	require.NoError(t, err)
+
+	nse, err := stream.Recv()
+	require.NoError(t, err)
+
+	require.Equal(t, "ns-1", nse.Name)
 }
