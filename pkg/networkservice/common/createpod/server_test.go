@@ -87,8 +87,6 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 
 	want := podTemplate.DeepCopy()
 	want.Spec.NodeName = nodeName1
-	want.Spec.Containers[0].Env = []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName1}}
-	want.Spec.Containers[1].Env = []corev1.EnvVar{{Name: "NSM_LABELS", Value: "nodeName: " + nodeName1}}
 	require.Equal(t, pod.Spec, want.Spec)
 
 	pod.Status.Phase = "Succeeded"
