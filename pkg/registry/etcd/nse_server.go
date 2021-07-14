@@ -22,6 +22,7 @@ import (
 	"io"
 
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -115,29 +116,40 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 }
 
 func (n *etcdNSERegistryServer) watch(query *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
-	watcher, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Watch(s.Context(), metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
+	logger := log.FromContext(n.chainContext).WithField("etcdNSERegistryServer", "watch")
+
 	for {
-		select {
-		case <-n.chainContext.Done():
-			return n.chainContext.Err()
-		case <-s.Context().Done():
-			return s.Context().Err()
-		case event := <-watcher.ResultChan():
-			model, ok := event.Object.(*v1.NetworkServiceEndpoint)
-			if !ok {
-				continue
-			}
-			item := (*registry.NetworkServiceEndpoint)(&model.Spec)
-			if event.Type == watch.Deleted {
-				item.ExpirationTime.Seconds = -1
-			}
-			if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
-				err := s.Send(item)
-				if err != nil {
-					return err
+		watcher, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Watch(s.Context(), metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+
+		var event watch.Event
+		for watcherOpened := true; watcherOpened; {
+			select {
+			case <-n.chainContext.Done():
+				return n.chainContext.Err()
+			case <-s.Context().Done():
+				return s.Context().Err()
+			case event, watcherOpened = <-watcher.ResultChan():
+				if !watcherOpened {
+					logger.Warn("watcher is closed, retrying")
+					continue
+				}
+				model, ok := event.Object.(*v1.NetworkServiceEndpoint)
+				if !ok {
+					logger.Errorf("event: %v", event)
+					continue
+				}
+				item := (*registry.NetworkServiceEndpoint)(&model.Spec)
+				if event.Type == watch.Deleted {
+					item.ExpirationTime.Seconds = -1
+				}
+				if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
+					err := s.Send(item)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
