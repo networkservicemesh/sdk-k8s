@@ -26,16 +26,6 @@ func WithNamespace(namespace string) Option {
 	}
 }
 
-// WithLabelsKey sets labels key value. Default value is "NSM_LABELS".
-//
-// Environment variable with specified labels key is set on pod creation,
-// to notify the pod about the node it is being create on.
-func WithLabelsKey(labelsKey string) Option {
-	return func(t *createPodServer) {
-		t.labelsKey = labelsKey
-	}
-}
-
 // WithNameGenerator sets function to be used for pod name generation.
 // Default behavior is to append a random uuid to the template name.
 func WithNameGenerator(nameGenerator func(templateName, nodeName string) string) Option {

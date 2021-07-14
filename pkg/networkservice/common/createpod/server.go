@@ -43,7 +43,6 @@ type createPodServer struct {
 	client        kubernetes.Interface
 	podTemplate   *corev1.Pod
 	namespace     string
-	labelsKey     string
 	nodeMap       nodeInfoMap
 	nameGenerator func(templateName, nodeName string) string
 }
@@ -63,8 +62,7 @@ func NewServer(ctx context.Context, client kubernetes.Interface, podTemplate *co
 		podTemplate:   podTemplate.DeepCopy(),
 		client:        client,
 		namespace:     "default",
-		labelsKey:     "NSM_LABELS",
-		nameGenerator: func(templateName, nodeName string) string { return templateName + uuid.New().String() },
+		nameGenerator: func(templateName, nodeName string) string { return templateName + "-" + uuid.New().String() },
 	}
 
 	for _, opt := range options {
@@ -137,12 +135,6 @@ func (s *createPodServer) createPod(ctx context.Context, nodeName, podName strin
 	podTemplate := s.podTemplate.DeepCopy()
 	podTemplate.ObjectMeta.Name = podName
 	podTemplate.Spec.NodeName = nodeName
-	for i := range podTemplate.Spec.Containers {
-		podTemplate.Spec.Containers[i].Env = append(podTemplate.Spec.Containers[i].Env, corev1.EnvVar{
-			Name:  s.labelsKey,
-			Value: "nodeName: " + nodeName,
-		})
-	}
 
 	_, err := s.client.CoreV1().Pods(s.namespace).Create(ctx, podTemplate, metav1.CreateOptions{})
 	return err
