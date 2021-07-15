@@ -22,6 +22,7 @@ import (
 	"io"
 
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -73,24 +74,34 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 }
 
 func (n *etcdNSRegistryServer) watch(query *registry.NetworkServiceQuery, s registry.NetworkServiceRegistry_FindServer) error {
-	watcher, err := n.client.NetworkservicemeshV1().NetworkServices(n.ns).Watch(s.Context(), metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
+	logger := log.FromContext(n.chainContext).WithField("etcdNSRegistryServer", "watch")
+
 	for {
-		select {
-		case <-s.Context().Done():
-			return s.Context().Err()
-		case event := <-watcher.ResultChan():
-			if event.Type != watch.Added {
-				continue
-			}
-			model := event.Object.(*v1.NetworkService)
-			item := (*registry.NetworkService)(&model.Spec)
-			if matchutils.MatchNetworkServices(query.NetworkService, item) {
-				err := s.Send(item)
-				if err != nil {
-					return err
+		watcher, err := n.client.NetworkservicemeshV1().NetworkServices(n.ns).Watch(s.Context(), metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+
+		var event watch.Event
+		for watcherOpened := true; watcherOpened; {
+			select {
+			case <-s.Context().Done():
+				return s.Context().Err()
+			case event, watcherOpened = <-watcher.ResultChan():
+				if !watcherOpened {
+					logger.Warn("watcher is closed, retrying")
+					continue
+				}
+				if event.Type != watch.Added {
+					continue
+				}
+				model := event.Object.(*v1.NetworkService)
+				item := (*registry.NetworkService)(&model.Spec)
+				if matchutils.MatchNetworkServices(query.NetworkService, item) {
+					err := s.Send(item)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
