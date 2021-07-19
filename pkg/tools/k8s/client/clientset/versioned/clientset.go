@@ -25,10 +25,11 @@ package versioned
 import (
 	"fmt"
 
-	networkservicemeshv1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/typed/networkservicemesh.io/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
+
+	networkservicemeshv1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/typed/networkservicemesh.io/v1"
 )
 
 type Interface interface {

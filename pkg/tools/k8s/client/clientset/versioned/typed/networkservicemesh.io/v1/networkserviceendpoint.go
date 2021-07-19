@@ -26,12 +26,13 @@ import (
 	"context"
 	"time"
 
-	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
-	scheme "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
+
+	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
+	scheme "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/scheme"
 )
 
 // NetworkServiceEndpointsGetter has a method to return a NetworkServiceEndpointInterface.
