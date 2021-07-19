@@ -20,6 +20,8 @@ jobs:
           - cmd-forwarder-sriov
           - cmd-registry-k8s
           - cmd-nse-supplier-k8s
+          - cmd-map-ip-k8s
+          - cmd-admission-webhook-k8s
     name: Update ${{ matrix.repository }}
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.actor == 'nsmbot' || github.event_name == 'push' }}
