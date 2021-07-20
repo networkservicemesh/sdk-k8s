@@ -26,14 +26,15 @@ import (
 	"context"
 	time "time"
 
-	networkservicemeshiov1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
-	versioned "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
-	internalinterfaces "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/listers/networkservicemesh.io/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
+
+	networkservicemeshiov1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
+	versioned "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
+	internalinterfaces "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/informers/externalversions/internalinterfaces"
+	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/listers/networkservicemesh.io/v1"
 )
 
 // NetworkServiceEndpointInformer provides access to a shared informer and lister for
