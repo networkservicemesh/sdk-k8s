@@ -23,6 +23,7 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"google.golang.org/protobuf/proto"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -59,11 +60,17 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 	if apierrors.IsAlreadyExists(err) {
 		var exist *v1.NetworkService
 		exist, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Get(ctx, request.Name, metav1.GetOptions{})
-		if err == nil {
-			exist.Spec = *(*v1.NetworkServiceSpec)(request)
-			apiResp, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, exist, metav1.UpdateOptions{})
+		if err != nil {
+			return nil, err
 		}
+		if proto.Equal((*registry.NetworkService)(&exist.Spec), request) {
+			return nil, errors.New("network service with this name already exist")
+		}
+
+		exist.Spec = *(*v1.NetworkServiceSpec)(request)
+		apiResp, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, exist, metav1.UpdateOptions{})
 	}
+
 	if err != nil {
 		return nil, err
 	}
