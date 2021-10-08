@@ -62,7 +62,7 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 		exist, err = n.client.NetworkservicemeshV1().NetworkServices("").Get(ctx, request.Name, metav1.GetOptions{})
 		if err == nil {
 			exist.Spec = *(*v1.NetworkServiceSpec)(request)
-			apiResp, err = n.client.NetworkservicemeshV1().NetworkServices("").Update(ctx, exist, metav1.UpdateOptions{})
+			apiResp, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, exist, metav1.UpdateOptions{})
 		}
 	}
 	if err != nil {
