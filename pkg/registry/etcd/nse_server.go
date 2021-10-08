@@ -63,10 +63,10 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 	)
 	if apierrors.IsAlreadyExists(err) {
 		var exist *v1.NetworkServiceEndpoint
-		exist, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Get(ctx, request.Name, metav1.GetOptions{})
+		exist, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").Get(ctx, request.Name, metav1.GetOptions{})
 		if err == nil {
 			exist.Spec = *(*v1.NetworkServiceEndpointSpec)(request)
-			apiResp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(ctx, exist, metav1.UpdateOptions{})
+			apiResp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").Update(ctx, exist, metav1.UpdateOptions{})
 		}
 	}
 	if err != nil {
@@ -77,7 +77,7 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 }
 
 func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
-	list, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).List(s.Context(), metav1.ListOptions{})
+	list, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(s.Context(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 	if err != nil {
 		return nil, err
 	}
-	err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(
+	err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").Delete(
 		ctx,
 		request.Name,
 		metav1.DeleteOptions{})
@@ -120,7 +120,7 @@ func (n *etcdNSERegistryServer) watch(query *registry.NetworkServiceEndpointQuer
 	var watchErr error
 	for watchErr == nil {
 		timeoutSeconds := int64(time.Minute / time.Second)
-		watcher, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Watch(s.Context(), metav1.ListOptions{
+		watcher, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").Watch(s.Context(), metav1.ListOptions{
 			TimeoutSeconds: &timeoutSeconds,
 		})
 		if err != nil {

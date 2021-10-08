@@ -32,7 +32,7 @@ import (
 )
 
 func Test_NSEReRegister(t *testing.T) {
-	s := etcd.NewNetworkServiceEndpointRegistryServer(context.Background(), "default", fake.NewSimpleClientset())
+	s := etcd.NewNetworkServiceEndpointRegistryServer(context.Background(), "", fake.NewSimpleClientset())
 	_, err := s.Register(context.Background(), &registry.NetworkServiceEndpoint{Name: "nse-1"})
 	require.NoError(t, err)
 	_, err = s.Register(context.Background(), &registry.NetworkServiceEndpoint{Name: "nse-1", NetworkServiceNames: []string{"ns-1"}})

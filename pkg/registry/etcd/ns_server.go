@@ -59,10 +59,10 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 	)
 	if apierrors.IsAlreadyExists(err) {
 		var exist *v1.NetworkService
-		exist, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Get(ctx, request.Name, metav1.GetOptions{})
+		exist, err = n.client.NetworkservicemeshV1().NetworkServices("").Get(ctx, request.Name, metav1.GetOptions{})
 		if err == nil {
 			exist.Spec = *(*v1.NetworkServiceSpec)(request)
-			apiResp, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, exist, metav1.UpdateOptions{})
+			apiResp, err = n.client.NetworkservicemeshV1().NetworkServices("").Update(ctx, exist, metav1.UpdateOptions{})
 		}
 	}
 	if err != nil {
@@ -78,7 +78,7 @@ func (n *etcdNSRegistryServer) watch(query *registry.NetworkServiceQuery, s regi
 	var watchErr error
 	for watchErr == nil {
 		timeoutSeconds := int64(time.Minute / time.Second)
-		watcher, err := n.client.NetworkservicemeshV1().NetworkServices(n.ns).Watch(s.Context(), metav1.ListOptions{
+		watcher, err := n.client.NetworkservicemeshV1().NetworkServices("").Watch(s.Context(), metav1.ListOptions{
 			TimeoutSeconds: &timeoutSeconds,
 		})
 		if err != nil {
@@ -126,7 +126,7 @@ func (n *etcdNSRegistryServer) handleWatcher(
 }
 
 func (n *etcdNSRegistryServer) Find(query *registry.NetworkServiceQuery, s registry.NetworkServiceRegistry_FindServer) error {
-	list, err := n.client.NetworkservicemeshV1().NetworkServices(n.ns).List(s.Context(), metav1.ListOptions{})
+	list, err := n.client.NetworkservicemeshV1().NetworkServices("").List(s.Context(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func (n *etcdNSRegistryServer) Unregister(ctx context.Context, request *registry
 	if err != nil {
 		return nil, err
 	}
-	err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Delete(
+	err = n.client.NetworkservicemeshV1().NetworkServices("").Delete(
 		ctx,
 		request.Name,
 		metav1.DeleteOptions{},

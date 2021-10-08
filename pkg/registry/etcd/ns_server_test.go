@@ -33,7 +33,7 @@ import (
 )
 
 func Test_NSReRegister(t *testing.T) {
-	s := etcd.NewNetworkServiceRegistryServer(context.Background(), "default", fake.NewSimpleClientset())
+	s := etcd.NewNetworkServiceRegistryServer(context.Background(), "", fake.NewSimpleClientset())
 	_, err := s.Register(context.Background(), &registry.NetworkService{Name: "ns-1"})
 	require.NoError(t, err)
 	_, err = s.Register(context.Background(), &registry.NetworkService{Name: "ns-1", Payload: "IP"})
@@ -46,14 +46,14 @@ func Test_K8sNERegistry_ShouldMatchMetadataToName(t *testing.T) {
 
 	var myClientset = fake.NewSimpleClientset()
 
-	_, err := myClientset.NetworkservicemeshV1().NetworkServices("default").Create(ctx, &v1.NetworkService{
+	_, err := myClientset.NetworkservicemeshV1().NetworkServices("").Create(ctx, &v1.NetworkService{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "ns-1",
 		},
 	}, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	s := etcd.NewNetworkServiceRegistryServer(ctx, "default", myClientset)
+	s := etcd.NewNetworkServiceRegistryServer(ctx, "", myClientset)
 	c := adapters.NetworkServiceServerToClient(s)
 
 	stream, err := c.Find(ctx, &registry.NetworkServiceQuery{
