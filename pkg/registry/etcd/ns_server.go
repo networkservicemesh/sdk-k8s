@@ -58,11 +58,24 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 		metav1.CreateOptions{},
 	)
 	if apierrors.IsAlreadyExists(err) {
-		var exist *v1.NetworkService
-		exist, err = n.client.NetworkservicemeshV1().NetworkServices("").Get(ctx, request.Name, metav1.GetOptions{})
-		if err == nil {
-			exist.Spec = *(*v1.NetworkServiceSpec)(request)
-			apiResp, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, exist, metav1.UpdateOptions{})
+		var ns *v1.NetworkService
+		list, erro := n.client.NetworkservicemeshV1().NetworkServices("").List(ctx, metav1.ListOptions{})
+		if erro != nil {
+			return nil, erro
+		}
+		for i := 0; i < len(list.Items); i++ {
+			item := (*registry.NetworkService)(&list.Items[i].Spec)
+			if item.Name == "" {
+				item.Name = list.Items[i].Name
+			}
+			if request.Name == item.Name {
+				list.Items[i].Spec = *(*v1.NetworkServiceSpec)(request)
+				ns = &list.Items[i]
+			}
+		}
+
+		if ns != nil {
+			apiResp, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, ns, metav1.UpdateOptions{})
 		}
 	}
 	if err != nil {
