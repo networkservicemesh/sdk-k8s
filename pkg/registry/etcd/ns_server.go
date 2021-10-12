@@ -58,11 +58,10 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 		metav1.CreateOptions{},
 	)
 	if apierrors.IsAlreadyExists(err) {
-		var exist *v1.NetworkService
-		exist, err = n.client.NetworkservicemeshV1().NetworkServices("").Get(ctx, request.Name, metav1.GetOptions{})
+		var ns *v1.NetworkService
+		ns, err = n.findNetworkService(ctx, request)
 		if err == nil {
-			exist.Spec = *(*v1.NetworkServiceSpec)(request)
-			apiResp, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, exist, metav1.UpdateOptions{})
+			apiResp, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, ns, metav1.UpdateOptions{})
 		}
 	}
 	if err != nil {
@@ -173,4 +172,23 @@ func NewNetworkServiceRegistryServer(chainContext context.Context, ns string, cl
 		client:       client,
 		ns:           ns,
 	}
+}
+
+func (n *etcdNSRegistryServer) findNetworkService(ctx context.Context, ns *registry.NetworkService) (*v1.NetworkService, error) {
+	list, err := n.client.NetworkservicemeshV1().NetworkServices("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for i := 0; i < len(list.Items); i++ {
+		item := (*registry.NetworkService)(&list.Items[i].Spec)
+		if item.Name == "" {
+			item.Name = list.Items[i].Name
+		}
+		if ns.Name == item.Name {
+			list.Items[i].Spec = *(*v1.NetworkServiceSpec)(ns)
+			return &list.Items[i], nil
+		}
+	}
+
+	return nil, errors.New("network service not found")
 }
