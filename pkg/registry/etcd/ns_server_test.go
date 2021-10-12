@@ -40,7 +40,7 @@ func Test_NSReRegister(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func Test_K8sNERegistry_ShouldMatchMetadataToName(t *testing.T) {
+func Test_K8sNSRegistry_ShouldMatchMetadataToName(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
@@ -56,6 +56,32 @@ func Test_K8sNERegistry_ShouldMatchMetadataToName(t *testing.T) {
 	s := etcd.NewNetworkServiceRegistryServer(ctx, "", myClientset)
 	c := adapters.NetworkServiceServerToClient(s)
 
+	stream, err := c.Find(ctx, &registry.NetworkServiceQuery{
+		NetworkService: &registry.NetworkService{
+			Name: "ns-1",
+		},
+	})
+	require.NoError(t, err)
+
+	nse, err := stream.Recv()
+	require.NoError(t, err)
+
+	require.Equal(t, "ns-1", nse.Name)
+}
+
+func Test_K8sNSRegistry_Find(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	var myClientset = fake.NewSimpleClientset()
+	_, err := myClientset.NetworkservicemeshV1().NetworkServices("some namespace").Create(ctx, &v1.NetworkService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ns-1",
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	c := adapters.NetworkServiceServerToClient(etcd.NewNetworkServiceRegistryServer(ctx, "", myClientset))
 	stream, err := c.Find(ctx, &registry.NetworkServiceQuery{
 		NetworkService: &registry.NetworkService{
 			Name: "ns-1",

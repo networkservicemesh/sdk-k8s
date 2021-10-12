@@ -65,3 +65,29 @@ func Test_K8sNSERegistry_ShouldMatchMetadataToName(t *testing.T) {
 
 	require.Equal(t, "nse-1", nse.Name)
 }
+
+func Test_K8sNSERegistry_Find(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	var myClientset = fake.NewSimpleClientset()
+	_, err := myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("some namespace").Create(ctx, &v1.NetworkServiceEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "nse-1",
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	c := adapters.NetworkServiceEndpointServerToClient(etcd.NewNetworkServiceEndpointRegistryServer(ctx, "", myClientset))
+	stream, err := c.Find(ctx, &registry.NetworkServiceEndpointQuery{
+		NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{
+			Name: "nse-1",
+		},
+	})
+	require.NoError(t, err)
+
+	nse, err := stream.Recv()
+	require.NoError(t, err)
+
+	require.Equal(t, "nse-1", nse.Name)
+}

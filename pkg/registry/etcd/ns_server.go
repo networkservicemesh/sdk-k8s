@@ -155,7 +155,7 @@ func (n *etcdNSRegistryServer) Unregister(ctx context.Context, request *registry
 	if err != nil {
 		return nil, err
 	}
-	err = n.client.NetworkservicemeshV1().NetworkServices("").Delete(
+	err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Delete(
 		ctx,
 		request.Name,
 		metav1.DeleteOptions{},
