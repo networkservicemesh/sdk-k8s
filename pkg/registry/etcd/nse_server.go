@@ -172,11 +172,13 @@ func (n *etcdNSERegistryServer) handleWatcher(
 				continue
 			}
 			item := (*registry.NetworkServiceEndpoint)(&model.Spec)
+
+			nseResp := &registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: item}
 			if event.Type == watch.Deleted {
-				item.ExpirationTime.Seconds = -1
+				nseResp.Deleted = true
 			}
 			if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
-				err := s.Send(&registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: item})
+				err := s.Send(nseResp)
 				if err != nil {
 					return err
 				}
