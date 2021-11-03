@@ -60,10 +60,10 @@ func Test_K8sNSERegistry_ShouldMatchMetadataToName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	nse, err := stream.Recv()
+	nseResp, err := stream.Recv()
 	require.NoError(t, err)
 
-	require.Equal(t, "nse-1", nse.Name)
+	require.Equal(t, "nse-1", nseResp.NetworkServiceEndpoint.Name)
 }
 
 func Test_K8sNSERegistry_Find(t *testing.T) {
@@ -86,8 +86,8 @@ func Test_K8sNSERegistry_Find(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	nse, err := stream.Recv()
+	nseResp, err := stream.Recv()
 	require.NoError(t, err)
 
-	require.Equal(t, "nse-1", nse.Name)
+	require.Equal(t, "nse-1", nseResp.NetworkServiceEndpoint.Name)
 }
