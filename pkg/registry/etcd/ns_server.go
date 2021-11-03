@@ -128,7 +128,7 @@ func (n *etcdNSRegistryServer) handleWatcher(
 			model := event.Object.(*v1.NetworkService)
 			item := (*registry.NetworkService)(&model.Spec)
 			if matchutils.MatchNetworkServices(query.NetworkService, item) {
-				err := s.Send(item)
+				err := s.Send(&registry.NetworkServiceResponse{NetworkService: item})
 				if err != nil {
 					return err
 				}
@@ -149,7 +149,7 @@ func (n *etcdNSRegistryServer) Find(query *registry.NetworkServiceQuery, s regis
 			item.Name = list.Items[i].Name
 		}
 		if matchutils.MatchNetworkServices(query.NetworkService, item) {
-			err := s.Send(item)
+			err := s.Send(&registry.NetworkServiceResponse{NetworkService: item})
 			if err != nil {
 				return err
 			}

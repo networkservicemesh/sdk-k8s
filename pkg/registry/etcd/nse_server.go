@@ -100,7 +100,7 @@ func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery
 			item.Name = list.Items[i].Name
 		}
 		if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
-			err := s.Send(item)
+			err := s.Send(&registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: item})
 			if err != nil {
 				return err
 			}
@@ -176,7 +176,7 @@ func (n *etcdNSERegistryServer) handleWatcher(
 				item.ExpirationTime.Seconds = -1
 			}
 			if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
-				err := s.Send(item)
+				err := s.Send(&registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: item})
 				if err != nil {
 					return err
 				}
