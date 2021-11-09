@@ -80,7 +80,7 @@ func TestNSMGR_LocalUsecase(t *testing.T) {
 	conn, err := nsc.Request(ctx, request.Clone())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	require.Equal(t, 5, len(conn.Path.PathSegments))
+	require.Equal(t, 4, len(conn.Path.PathSegments))
 
 	// Simulate refresh from client.
 
@@ -90,7 +90,7 @@ func TestNSMGR_LocalUsecase(t *testing.T) {
 	conn2, err := nsc.Request(ctx, refreshRequest)
 	require.NoError(t, err)
 	require.NotNil(t, conn2)
-	require.Equal(t, 5, len(conn2.Path.PathSegments))
+	require.Equal(t, 4, len(conn2.Path.PathSegments))
 
 	// Close.
 
@@ -139,7 +139,7 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 	conn, err := nsc.Request(ctx, request.Clone())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	require.Equal(t, 8, len(conn.Path.PathSegments))
+	require.Equal(t, 6, len(conn.Path.PathSegments))
 
 	// Simulate refresh from client.
 
@@ -149,7 +149,7 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 	conn, err = nsc.Request(ctx, refreshRequest)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	require.Equal(t, 8, len(conn.Path.PathSegments))
+	require.Equal(t, 6, len(conn.Path.PathSegments))
 
 	// Close.
 
