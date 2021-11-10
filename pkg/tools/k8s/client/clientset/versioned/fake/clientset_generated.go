@@ -1,8 +1,8 @@
-// Copyright (c) 2020 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2020 Cisco and/or its affiliates.
+// Copyright (c) 2020-2021 Cisco and/or its affiliates.
 //
-// Copyright (c) 2020 VMware, Inc.
+// Copyright (c) 2020-2021 VMware, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -79,7 +79,10 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 	return c.tracker
 }
 
-var _ clientset.Interface = &Clientset{}
+var (
+	_ clientset.Interface = &Clientset{}
+	_ testing.FakeClient  = &Clientset{}
+)
 
 // NetworkservicemeshV1 retrieves the NetworkservicemeshV1Client
 func (c *Clientset) NetworkservicemeshV1() networkservicemeshv1.NetworkservicemeshV1Interface {
