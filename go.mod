@@ -13,6 +13,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
+	golang.org/x/tools v0.1.7 // indirect
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
 	k8s.io/api v0.22.1
