@@ -8,7 +8,7 @@ on:
     types:
       - completed
     workflows:
-      - 'automerge'
+      - "automerge"
 jobs:
   update-dependent-repositories:
     continue-on-error: true
@@ -20,6 +20,7 @@ jobs:
           - cmd-forwarder-sriov
           - cmd-registry-k8s
           - cmd-nse-supplier-k8s
+          - cmd-forwarder-vpp
     name: Update ${{ matrix.repository }}
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.actor == 'nsmbot' || github.event_name == 'push' }}
