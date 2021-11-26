@@ -5,7 +5,7 @@ on:
     types:
       - completed
     workflows:
-      - 'ci'
+      - "ci"
 jobs:
   print-debug-info:
     name: Print debug info for Release workflow
@@ -48,6 +48,7 @@ jobs:
           - cmd-forwarder-sriov
           - cmd-registry-k8s
           - cmd-nse-supplier-k8s
+          - cmd-forwarder-vpp
     name: Update ${{ matrix.repository }}
     needs: create-release
     runs-on: ubuntu-latest
