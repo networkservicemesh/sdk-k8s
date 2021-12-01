@@ -28,6 +28,7 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/registry/common/expire"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/proxy"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/serialize"
+	"github.com/networkservicemesh/sdk/pkg/registry/common/setregistrationtime"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/chain"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/etcd"
@@ -47,6 +48,7 @@ type Config struct {
 func NewServer(config *Config, dialOptions ...grpc.DialOption) registryserver.Registry {
 	nseChain := chain.NewNetworkServiceEndpointRegistryServer(
 		serialize.NewNetworkServiceEndpointRegistryServer(),
+		setregistrationtime.NewNetworkServiceEndpointRegistryServer(),
 		expire.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.ExpirePeriod),
 		etcd.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
 		proxy.NewNetworkServiceEndpointRegistryServer(config.ProxyRegistryURL),
