@@ -1,4 +1,6 @@
-// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
+//
+// Copyright (c) 2022 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -36,9 +38,10 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/registry/switchcase"
 	"github.com/networkservicemesh/sdk/pkg/tools/interdomain"
 
+	"github.com/networkservicemesh/sdk/pkg/registry/common/begin"
+
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/etcd"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
-	"github.com/networkservicemesh/sdk/pkg/registry/common/begin"
 )
 
 // Config contains configuration parameters for registry.Registry based on k8s client
