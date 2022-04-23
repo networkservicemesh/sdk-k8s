@@ -1,3 +1,5 @@
+// Copyright (c) 2022 Cisco and/or its affiliates.
+//
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
 // Copyright (c) 2021 Nordix Foundation.
@@ -16,7 +18,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//+build !windows
+//go:build !windows
+// +build !windows
 
 // Package deviceplugin provides tools for setting up device plugin server
 package deviceplugin

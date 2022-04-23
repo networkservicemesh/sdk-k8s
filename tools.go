@@ -1,7 +1,5 @@
 // Copyright (c) 2022 Cisco and/or its affiliates.
 //
-// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
-//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +14,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package k8s
+//go:build tools
 
-//go:generate bash -c "bash $(go get && go list -m -f '{{.Dir}}' k8s.io/code-generator)/generate-groups.sh all github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis networkservicemesh.io:v1 --go-header-file ./../../../copyright.txt"
-//go:generate go run golang.org/x/tools/cmd/goimports -w -local github.com/networkservicemesh -d "./client"
-//go:generate go mod tidy
+package tools
+
+import (
+	_ "github.com/searKing/golang/tools/cmd/go-syncmap"
+	_ "golang.org/x/tools/cmd/goimports"
+	_ "k8s.io/code-generator"
+)
