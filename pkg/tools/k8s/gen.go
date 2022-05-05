@@ -16,9 +16,9 @@
 
 package k8s
 
-//go:generate go get -d k8s.io/code-generator@v0.22.3
+//go:generate go get -tags=tools k8s.io/code-generator@v0.22.3
 //go:generate bash -c "chmod +x $GOPATH/pkg/mod/k8s.io/code-generator@v0.22.3/generate-groups.sh"
 //go:generate $GOPATH/pkg/mod/k8s.io/code-generator@v0.22.3/generate-groups.sh all github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis networkservicemesh.io:v1 --go-header-file ./../../../copyright.txt
-//go:generate go get golang.org/x/tools/cmd/goimports
+//go:generate go install golang.org/x/tools/cmd/goimports@v0.1.10
 //go:generate $GOPATH/bin/goimports -w -local github.com/networkservicemesh -d "./client"
 //go:generate go mod tidy
