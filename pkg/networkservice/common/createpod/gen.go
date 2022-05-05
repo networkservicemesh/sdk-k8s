@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Doc.ai and/or its affiliates.
+// Copyright (c) 2021-2022 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -20,6 +20,7 @@ import (
 	"sync"
 )
 
+//go:generate go install github.com/searKing/golang/tools/cmd/go-syncmap@v1.1.68
 //go:generate go-syncmap -output connection_info_map.gen.go -type nodeInfoMap<string,*nodeInfo>
 
 type nodeInfoMap sync.Map
