@@ -88,7 +88,7 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 		})
 		require.Error(t, err)
 
-		podList, err := clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
+		podList, err = clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
 		require.NoError(t, err)
 		return len(podList.Items) > 0 && podList.Items[0].GetName() != pod.GetName()
 	}, time.Millisecond*100, time.Millisecond*10)

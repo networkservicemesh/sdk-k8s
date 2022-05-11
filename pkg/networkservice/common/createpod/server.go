@@ -20,7 +20,6 @@ package createpod
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sync"
 	"text/template"
 
@@ -158,17 +157,16 @@ func (s *createPodServer) createPod(ctx context.Context, nodeName string, conn *
 	}
 	var pod corev1.Pod
 
-	fmt.Println(string(buffer.Bytes()))
 	_, _, err = s.deserializer.Decode(buffer.Bytes(), nil, &pod)
 	if err != nil {
 		return "", err
 	}
+
 	if pod.Spec.NodeName == "" {
 		pod.Spec.NodeName = nodeName
 	}
 
 	resp, err := s.client.CoreV1().Pods(s.namespace).Create(ctx, &pod, metav1.CreateOptions{})
-
 	if err != nil {
 		return "", err
 	}

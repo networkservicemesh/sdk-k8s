@@ -110,7 +110,6 @@ linters-settings:
       - regexpPattern
       - singleCaseSwitch
       - sloppyLen
-      - sloppyReassign
       - stringXbytes
       - switchTrue
       - typeAssertChain
