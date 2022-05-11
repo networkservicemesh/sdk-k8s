@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Doc.ai and/or its affiliates.
+// Copyright (c) 2021-2022 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -23,13 +23,5 @@ type Option func(t *createPodServer)
 func WithNamespace(namespace string) Option {
 	return func(t *createPodServer) {
 		t.namespace = namespace
-	}
-}
-
-// WithNameGenerator sets function to be used for pod name generation.
-// Default behavior is to append a random uuid to the template name.
-func WithNameGenerator(nameGenerator func(templateName, nodeName string) string) Option {
-	return func(t *createPodServer) {
-		t.nameGenerator = nameGenerator
 	}
 }

@@ -1,4 +1,6 @@
-// Copyright (c) 2021 Doc.ai and/or its affiliates.
+// Copyright (c) 2021-2022 Doc.ai and/or its affiliates.
+//
+// Copyright (c) 2021-2022 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,13 +21,10 @@ package createpod_test
 import (
 	"context"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
@@ -49,17 +48,10 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 
 	clientSet := fake.NewSimpleClientset()
 
-	podTemplate := defaultPodTemplate()
-
-	counter := atomic.Int32{}
-
 	server := next.NewNetworkServiceServer(
 		adapters.NewClientToServer(clientinfo.NewClient()),
-		createpod.NewServer(ctx, clientSet, podTemplate,
+		createpod.NewServer(ctx, clientSet, defaultPodTemplate,
 			createpod.WithNamespace(testNamespace),
-			createpod.WithNameGenerator(func(templateName, nodeName string) string {
-				return templateName + strconv.Itoa(int(counter.Add(1)))
-			}),
 		),
 	)
 
@@ -71,7 +63,7 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 		Connection: &networkservice.Connection{},
 	})
 	require.Error(t, err)
-	require.Equal(t, "cannot provide required networkservice: local endpoint created as PodName1", err.Error())
+	require.Contains(t, err.Error(), "cannot provide required networkservice: local endpoint created as ")
 
 	// second request: should fail
 	_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
@@ -85,10 +77,6 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 	require.Equal(t, 1, len(podList.Items))
 	pod := podList.Items[0].DeepCopy()
 
-	want := podTemplate.DeepCopy()
-	want.Spec.NodeName = nodeName1
-	require.Equal(t, pod.Spec, want.Spec)
-
 	pod.Status.Phase = "Succeeded"
 	_, err = clientSet.CoreV1().Pods(testNamespace).UpdateStatus(ctx, pod, metav1.UpdateOptions{})
 	require.NoError(t, err)
@@ -99,7 +87,10 @@ func TestCreatePod_RepeatedRequest(t *testing.T) {
 			Connection: &networkservice.Connection{},
 		})
 		require.Error(t, err)
-		return err.Error() == "cannot provide required networkservice: local endpoint created as PodName2"
+
+		podList, err = clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
+		require.NoError(t, err)
+		return len(podList.Items) > 0 && podList.Items[0].GetName() != pod.GetName()
 	}, time.Millisecond*100, time.Millisecond*10)
 
 	podList, err = clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
@@ -117,17 +108,10 @@ func TestCreatePod_TwoNodes(t *testing.T) {
 
 	clientSet := fake.NewSimpleClientset()
 
-	podTemplate := defaultPodTemplate()
-
-	counter := atomic.Int32{}
-
 	server := next.NewNetworkServiceServer(
 		adapters.NewClientToServer(clientinfo.NewClient()),
-		createpod.NewServer(ctx, clientSet, podTemplate,
+		createpod.NewServer(ctx, clientSet, defaultPodTemplate,
 			createpod.WithNamespace(testNamespace),
-			createpod.WithNameGenerator(func(templateName, nodeName string) string {
-				return templateName + strconv.Itoa(int(counter.Add(1)))
-			}),
 		),
 	)
 
@@ -135,43 +119,53 @@ func TestCreatePod_TwoNodes(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
-		Connection: &networkservice.Connection{},
+		Connection: &networkservice.Connection{
+			Labels: map[string]string{
+				"a": "b",
+				"c": "e",
+			},
+		},
 	})
 	require.Error(t, err)
-	require.Equal(t, "cannot provide required networkservice: local endpoint created as PodName1", err.Error())
+	require.Contains(t, err.Error(), "cannot provide required networkservice: local endpoint created as ")
 
 	err = os.Setenv("NODE_NAME", nodeName2)
 	require.NoError(t, err)
 
 	_, err = server.Request(ctx, &networkservice.NetworkServiceRequest{
-		Connection: &networkservice.Connection{},
+		Connection: &networkservice.Connection{
+			Labels: map[string]string{
+				"a": "b",
+				"c": "e",
+			},
+		},
 	})
 	require.Error(t, err)
-	require.Equal(t, "cannot provide required networkservice: local endpoint created as PodName2", err.Error())
+	require.Contains(t, err.Error(), "cannot provide required networkservice: local endpoint created as ")
 
 	podList, err := clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)
+	var nodesSet = map[string]struct{}{
+		nodeName1: {},
+		nodeName2: {},
+	}
+	require.Contains(t, podList.Items[0].GetLabels(), "a")
+	require.Contains(t, podList.Items[0].GetLabels(), "c")
 	require.Equal(t, 2, len(podList.Items))
-	require.Equal(t, nodeName1, podList.Items[0].Spec.NodeName)
-	require.Equal(t, nodeName2, podList.Items[1].Spec.NodeName)
+	require.Contains(t, nodesSet, podList.Items[0].Spec.NodeName)
+	delete(nodesSet, podList.Items[0].Spec.NodeName)
+	require.Contains(t, nodesSet, podList.Items[1].Spec.NodeName)
 }
 
-func defaultPodTemplate() *corev1.Pod {
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "PodName",
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:  "my-container-1",
-					Image: "my-image-1",
-				},
-				{
-					Name:  "my-container-2",
-					Image: "my-image-2",
-				},
-			},
-		},
-	}
-}
+const defaultPodTemplate = `---
+apiVersion: apps/v1
+kind: Pod
+metadata:
+    name: nse-{{ uuid }}
+    labels: {{ range $key, $value := .Labels }}
+        "{{ $key }}": "{{ $value }}"{{ end }}
+objectmeta:
+    containers:
+        - name: my-container-1
+          image: my-image-1
+`
