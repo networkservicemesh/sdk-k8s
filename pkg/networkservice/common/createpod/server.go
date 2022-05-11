@@ -62,7 +62,6 @@ type nodeInfo struct {
 // Pods are created on the node with a name specified by key "NodeNameKey" in request labels
 // (this label is expected to be filled by clientinfo client).
 func NewServer(ctx context.Context, client kubernetes.Interface, podTemplate string, options ...Option) networkservice.NetworkServiceServer {
-
 	scheme := runtime.NewScheme()
 	codecFactory := serializer.NewCodecFactory(scheme)
 	deserializer := codecFactory.UniversalDeserializer()

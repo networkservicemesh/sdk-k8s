@@ -146,8 +146,8 @@ func TestCreatePod_TwoNodes(t *testing.T) {
 	podList, err := clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)
 	var nodesSet = map[string]struct{}{
-		nodeName1: struct{}{},
-		nodeName2: struct{}{},
+		nodeName1: {},
+		nodeName2: {},
 	}
 	require.Contains(t, podList.Items[0].GetLabels(), "a")
 	require.Contains(t, podList.Items[0].GetLabels(), "c")
