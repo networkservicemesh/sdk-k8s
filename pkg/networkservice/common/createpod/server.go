@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Doc.ai and/or its affiliates.
+// Copyright (c) 2021-2022 Doc.ai and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,14 +18,20 @@
 package createpod
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"sync"
+	"text/template"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 
@@ -39,12 +45,12 @@ const (
 )
 
 type createPodServer struct {
-	ctx           context.Context
-	client        kubernetes.Interface
-	podTemplate   *corev1.Pod
-	namespace     string
-	nodeMap       nodeInfoMap
-	nameGenerator func(templateName, nodeName string) string
+	ctx          context.Context
+	client       kubernetes.Interface
+	podTemplate  string
+	namespace    string
+	nodeMap      nodeInfoMap
+	deserializer runtime.Decoder
 }
 
 type nodeInfo struct {
@@ -56,13 +62,18 @@ type nodeInfo struct {
 //
 // Pods are created on the node with a name specified by key "NodeNameKey" in request labels
 // (this label is expected to be filled by clientinfo client).
-func NewServer(ctx context.Context, client kubernetes.Interface, podTemplate *corev1.Pod, options ...Option) networkservice.NetworkServiceServer {
+func NewServer(ctx context.Context, client kubernetes.Interface, podTemplate string, options ...Option) networkservice.NetworkServiceServer {
+
+	scheme := runtime.NewScheme()
+	codecFactory := serializer.NewCodecFactory(scheme)
+	deserializer := codecFactory.UniversalDeserializer()
+
 	s := &createPodServer{
-		ctx:           ctx,
-		podTemplate:   podTemplate.DeepCopy(),
-		client:        client,
-		namespace:     "default",
-		nameGenerator: func(templateName, nodeName string) string { return templateName + "-" + uuid.New().String() },
+		ctx:          ctx,
+		podTemplate:  podTemplate,
+		client:       client,
+		namespace:    "default",
+		deserializer: deserializer,
 	}
 
 	for _, opt := range options {
@@ -119,11 +130,11 @@ func (s *createPodServer) Request(ctx context.Context, request *networkservice.N
 		return nil, errors.New("cannot provide required networkservice: local endpoint already exists")
 	}
 
-	ni.name = s.nameGenerator(s.podTemplate.ObjectMeta.Name, nodeName)
-	err := s.createPod(ctx, nodeName, ni.name)
+	name, err := s.createPod(ctx, nodeName, request.GetConnection())
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	ni.name = name
 	return nil, errors.Errorf("cannot provide required networkservice: local endpoint created as %v", ni.name)
 }
 
@@ -131,11 +142,36 @@ func (s *createPodServer) Close(ctx context.Context, conn *networkservice.Connec
 	return next.Server(ctx).Close(ctx, conn)
 }
 
-func (s *createPodServer) createPod(ctx context.Context, nodeName, podName string) error {
-	podTemplate := s.podTemplate.DeepCopy()
-	podTemplate.ObjectMeta.Name = podName
-	podTemplate.Spec.NodeName = nodeName
+func (s *createPodServer) createPod(ctx context.Context, nodeName string, conn *networkservice.Connection) (string, error) {
+	var t, err = template.New("createPod").Funcs(template.FuncMap{
+		"uuid": func() string {
+			return uuid.New().String()
+		},
+	}).Parse(s.podTemplate)
 
-	_, err := s.client.CoreV1().Pods(s.namespace).Create(ctx, podTemplate, metav1.CreateOptions{})
-	return err
+	if err != nil {
+		return "", err
+	}
+	var buffer bytes.Buffer
+	if err = t.Execute(&buffer, conn); err != nil {
+		return "", err
+	}
+	var pod corev1.Pod
+
+	fmt.Println(string(buffer.Bytes()))
+	_, _, err = s.deserializer.Decode(buffer.Bytes(), nil, &pod)
+	if err != nil {
+		return "", err
+	}
+	if pod.Spec.NodeName == "" {
+		pod.Spec.NodeName = nodeName
+	}
+
+	resp, err := s.client.CoreV1().Pods(s.namespace).Create(ctx, &pod, metav1.CreateOptions{})
+
+	if err != nil {
+		return "", err
+	}
+
+	return resp.GetObjectMeta().GetName(), nil
 }
