@@ -22,6 +22,6 @@ type Option func(t *createPodServer)
 // WithNamespace sets namespace in which new pods will be created. Default value is "default".
 func WithNamespace(namespace string) Option {
 	return func(t *createPodServer) {
-		t.namespace = namespace
+		t.myNamespace = namespace
 	}
 }
