@@ -20,7 +20,7 @@ package createpod
 import (
 	"bytes"
 	"context"
-	"sync"
+	"os"
 	"text/template"
 
 	"github.com/golang/protobuf/ptypes/empty"
@@ -41,20 +41,17 @@ import (
 
 const (
 	nodeNameKey = "nodeName"
+	createdBy   = "spawnedBy"
 )
 
 type createPodServer struct {
 	ctx          context.Context
 	client       kubernetes.Interface
-	podTemplate  string
-	namespace    string
-	nodeMap      nodeInfoMap
 	deserializer runtime.Decoder
-}
-
-type nodeInfo struct {
-	mut  sync.Mutex
-	name string
+	podTemplate  string
+	myNamespace  string
+	myNode       string
+	myName       string
 }
 
 // NewServer - returns a new server chain element that creates new pods using provided template.
@@ -62,78 +59,76 @@ type nodeInfo struct {
 // Pods are created on the node with a name specified by key "NodeNameKey" in request labels
 // (this label is expected to be filled by clientinfo client).
 func NewServer(ctx context.Context, client kubernetes.Interface, podTemplate string, options ...Option) networkservice.NetworkServiceServer {
-	scheme := runtime.NewScheme()
-	codecFactory := serializer.NewCodecFactory(scheme)
-	deserializer := codecFactory.UniversalDeserializer()
+	var scheme = runtime.NewScheme()
+	var codecFactory = serializer.NewCodecFactory(scheme)
+	var deserializer = codecFactory.UniversalDeserializer()
 
-	s := &createPodServer{
+	var s = &createPodServer{
 		ctx:          ctx,
 		podTemplate:  podTemplate,
 		client:       client,
-		namespace:    "default",
+		myNamespace:  "default",
 		deserializer: deserializer,
+		myNode:       os.Getenv("NODE_NAME"),
+		myName:       os.Getenv("POD_NAME"),
 	}
 
 	for _, opt := range options {
 		opt(s)
 	}
 
-	w, err := s.client.CoreV1().Pods(s.namespace).Watch(ctx, metav1.ListOptions{
+	var w, err = s.client.CoreV1().Pods(s.myNamespace).Watch(ctx, metav1.ListOptions{
 		LabelSelector: "",
 		FieldSelector: "",
 	})
 	if err == nil {
 		go s.monitorCompletedPods(w)
 	} else {
-		log.FromContext(s.ctx).Error("createpod: can't start watching pod events: ", err)
+		log.FromContext(s.ctx).Warn("createpod: can't start watching pod events: ", err)
 	}
 
 	return s
 }
 
 func (s *createPodServer) monitorCompletedPods(w watch.Interface) {
+	var list, err = s.client.CoreV1().Pods(s.myNamespace).List(s.ctx, metav1.ListOptions{})
+
+	if err == nil {
+		for i := 0; i < len(list.Items); i++ {
+			var p = &list.Items[i]
+			s.deleteSpawnedCompletedPod(p)
+		}
+	} else {
+		log.FromContext(s.ctx).Warn("createpod: can't list current pods: ", err)
+	}
+
+	go func() {
+		<-s.ctx.Done()
+		w.Stop()
+	}()
+
 	for event := range w.ResultChan() {
 		p, ok := event.Object.(*corev1.Pod)
 		if !ok {
 			continue
 		}
-		if p.Status.Phase == "Succeeded" || p.Status.Phase == "Failed" {
-			if ni, loaded := s.nodeMap.Load(p.Spec.NodeName); loaded {
-				ni.mut.Lock()
-				if p.ObjectMeta.Name == ni.name {
-					ni.name = ""
-				}
-				ni.mut.Unlock()
-
-				err := s.client.CoreV1().Pods(s.namespace).Delete(context.Background(), p.Name, metav1.DeleteOptions{})
-				if err != nil {
-					log.FromContext(s.ctx).Warn("createpod: can't delete finished pod: ", err)
-				}
-			}
-		}
+		s.deleteSpawnedCompletedPod(p)
 	}
 }
 
 func (s *createPodServer) Request(ctx context.Context, request *networkservice.NetworkServiceRequest) (*networkservice.Connection, error) {
 	nodeName := request.GetConnection().GetLabels()[nodeNameKey]
-	if nodeName == "" {
-		return nil, errors.New("nodeName label is not set")
-	}
-
-	ni, _ := s.nodeMap.LoadOrStore(nodeName, &nodeInfo{})
-	ni.mut.Lock()
-	defer ni.mut.Unlock()
-
-	if ni.name != "" {
-		return nil, errors.New("cannot provide required networkservice: local endpoint already exists")
+	_, err := s.client.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		nodeName = ""
 	}
 
 	name, err := s.createPod(ctx, nodeName, request.GetConnection())
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	ni.name = name
-	return nil, errors.Errorf("cannot provide required networkservice: local endpoint created as %v", ni.name)
+
+	return nil, errors.Errorf("cannot provide required networkservice: endpoint created as %v", name)
 }
 
 func (s *createPodServer) Close(ctx context.Context, conn *networkservice.Connection) (*empty.Empty, error) {
@@ -148,27 +143,46 @@ func (s *createPodServer) createPod(ctx context.Context, nodeName string, conn *
 	}).Parse(s.podTemplate)
 
 	if err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 	var buffer bytes.Buffer
 	if err = t.Execute(&buffer, conn); err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 	var pod corev1.Pod
 
 	_, _, err = s.deserializer.Decode(buffer.Bytes(), nil, &pod)
 	if err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 
 	if pod.Spec.NodeName == "" {
 		pod.Spec.NodeName = nodeName
 	}
 
-	resp, err := s.client.CoreV1().Pods(s.namespace).Create(ctx, &pod, metav1.CreateOptions{})
+	if pod.GetObjectMeta().GetLabels() == nil {
+		pod.GetObjectMeta().SetLabels(make(map[string]string))
+	}
+
+	pod.GetObjectMeta().GetLabels()[createdBy] = s.myName
+
+	resp, err := s.client.CoreV1().Pods(s.myNamespace).Create(ctx, &pod, metav1.CreateOptions{})
 	if err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 
 	return resp.GetObjectMeta().GetName(), nil
+}
+
+func (s *createPodServer) deleteSpawnedCompletedPod(p *corev1.Pod) {
+	if p.Labels[createdBy] != s.myName {
+		return
+	}
+	if p.Status.Phase != "Succeeded" && p.Status.Phase != "Failed" {
+		return
+	}
+	err := s.client.CoreV1().Pods(s.myNamespace).Delete(s.ctx, p.Name, metav1.DeleteOptions{})
+	if err != nil {
+		log.FromContext(s.ctx).Warn("createpod: can't delete finished pod: ", err)
+	}
 }
