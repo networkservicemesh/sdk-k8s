@@ -299,19 +299,21 @@ objectmeta:
 
 	cancel()
 
-	require.Never(t, func() bool {
-		newPodList, fetchListErr := clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
-		return fetchListErr != nil || len(newPodList.Items) == 0
-	}, time.Millisecond*150, time.Millisecond*15)
+	for end := time.Now().Add(time.Millisecond * 150); time.Until(end) > 0; time.Sleep(time.Millisecond * 15) {
+		podList, err = clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
+		require.NoError(t, err)
+		require.Len(t, podList.Items, 1)
+	}
 
 	podList.Items[0].Status.Phase = "Succeeded"
 	_, err = clientSet.CoreV1().Pods(testNamespace).UpdateStatus(ctx, &podList.Items[0], metav1.UpdateOptions{})
 	require.NoError(t, err)
 
-	require.Never(t, func() bool {
-		podList, err := clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
-		return err != nil || len(podList.Items) == 0
-	}, time.Millisecond*100, time.Millisecond*10)
+	for end := time.Now().Add(time.Millisecond * 100); time.Until(end) > 0; time.Sleep(time.Millisecond * 10) {
+		podList, err = clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
+		require.NoError(t, err)
+		require.Len(t, podList.Items, 1)
+	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
