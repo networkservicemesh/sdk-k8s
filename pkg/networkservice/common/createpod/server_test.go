@@ -68,7 +68,7 @@ objectmeta:
 
 	clientSet := fake.NewSimpleClientset()
 
-	err := os.Setenv("POD_NAME", "supplier-1")
+	err := os.Setenv("HOSTNAME", "supplier-1")
 	require.NoError(t, err)
 
 	server := next.NewNetworkServiceServer(
@@ -146,7 +146,7 @@ objectmeta:
 
 	clientSet := fake.NewSimpleClientset()
 
-	err := os.Setenv("POD_NAME", "supplier-1")
+	err := os.Setenv("HOSTNAME", "supplier-1")
 	require.NoError(t, err)
 
 	server := next.NewNetworkServiceServer(
@@ -223,7 +223,7 @@ objectmeta:
 
 	clientSet := fake.NewSimpleClientset()
 
-	err := os.Setenv("POD_NAME", "supplier-1")
+	err := os.Setenv("HOSTNAME", "supplier-1")
 	require.NoError(t, err)
 
 	server := next.NewNetworkServiceServer(
@@ -270,7 +270,7 @@ objectmeta:
 
 	clientSet := fake.NewSimpleClientset()
 
-	err := os.Setenv("POD_NAME", "supplier-1")
+	err := os.Setenv("HOSTNAME", "supplier-1")
 	require.NoError(t, err)
 
 	server := next.NewNetworkServiceServer(
