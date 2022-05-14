@@ -41,7 +41,7 @@ import (
 
 const (
 	nodeNameKey = "nodeName"
-	createdBy   = "spawnedBy"
+	createdBy   = "createdBy"
 )
 
 type createPodServer struct {
@@ -69,8 +69,7 @@ func NewServer(ctx context.Context, client kubernetes.Interface, podTemplate str
 		client:       client,
 		myNamespace:  "default",
 		deserializer: deserializer,
-		myNode:       os.Getenv("NODE_NAME"),
-		myName:       os.Getenv("POD_NAME"),
+		myName:       os.Getenv("HOSTNAME"),
 	}
 
 	for _, opt := range options {
