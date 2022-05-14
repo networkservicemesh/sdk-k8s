@@ -50,7 +50,6 @@ type createPodServer struct {
 	deserializer runtime.Decoder
 	podTemplate  string
 	myNamespace  string
-	myNode       string
 	myName       string
 }
 
