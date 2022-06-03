@@ -297,8 +297,8 @@ github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRW
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
 github.com/networkservicemesh/api v1.3.2-0.20220516230921-edaa6f46d6ab h1:hV6T7Kvze0qQphqi6g5ZKFoJ0m08OKdWETUINo3tuaA=
 github.com/networkservicemesh/api v1.3.2-0.20220516230921-edaa6f46d6ab/go.mod h1:hOF2844BSstH1311oDMDgqqXS+kdc77htZNPRKl9mf8=
-github.com/networkservicemesh/sdk v0.5.1-0.20220602113306-74b8b0ff702e h1:3LqWbi5IcVy88YNE4X1YeJ97zX9YE5T+8w+Xjb6Z67A=
-github.com/networkservicemesh/sdk v0.5.1-0.20220602113306-74b8b0ff702e/go.mod h1:FdmGiefBBcj9HlV+poQSEAPOuBVp/hkwjWoDEN2a+jg=
+github.com/networkservicemesh/sdk v0.5.1-0.20220603191023-6abdf1e0eb19 h1:fE/thEOElctFJ6n/lAL7omJdBKtnXXIMTMdb6Xk3faw=
+github.com/networkservicemesh/sdk v0.5.1-0.20220603191023-6abdf1e0eb19/go.mod h1:FdmGiefBBcj9HlV+poQSEAPOuBVp/hkwjWoDEN2a+jg=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nxadm/tail v1.4.4 h1:DQuhQpB1tVlglWS2hLQ5OV6B5r8aGxSrPc5Qo6uTN78=
