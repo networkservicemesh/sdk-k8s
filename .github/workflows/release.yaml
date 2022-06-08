@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: hmarr/debug-action@v2
-      
+
   get-tag:
     name: Get tag
     runs-on: ubuntu-latest
@@ -25,7 +25,7 @@ jobs:
           branch=${{github.event.workflow_run.head_branch}}
           echo '::set-output name=tag::'${branch#release/}
         id: get-tag-step
-  
+
   create-release:
     name: Create release
     needs: get-tag
@@ -38,7 +38,7 @@ jobs:
   release-dependent-repositories:
     name: Release dependent repositories
     needs: [get-tag, create-release]
-    uses: networkservicemesh/.github/.github/workflows/release-depentent-repositories.yaml@main
+    uses: networkservicemesh/.github/.github/workflows/release-dependent-repositories.yaml@main
     with:
       tag: ${{ needs.get-tag.outputs.tag }}
       dependent_repositories: |
