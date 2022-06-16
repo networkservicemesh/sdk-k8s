@@ -7,93 +7,30 @@ on:
       - 'release/**'
 jobs:
   yamllint:
-    name: yamllint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
-      - name: Setup Python
-        uses: actions/setup-python@v1
-      - name: Install yamllint
-        run: pip install --user yamllint
-      - name: Run yamllint
-        run: ~/.local/bin/yamllint -c .yamllint.yml --strict .
+    uses: networkservicemesh/.github/.github/workflows/yamllint.yaml@main
+
   shellcheck:
-    name: shellcheck
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: shellcheck
-        uses: fkautz/shell-linter@v1.0.1
+    uses: networkservicemesh/.github/.github/workflows/shellcheck.yaml@main
+
   build-and-test:
-    name: build and test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-      - name: Setup Go
-        uses: actions/setup-go@v1
-        with:
-          go-version: 1.18.1
-      - name: Build
-        run: go build -race  ./...
-      - name: Test
-        run: go test -race ./...
+    uses: networkservicemesh/.github/.github/workflows/build-and-test.yaml@main
+    with:
+      os: '["ubuntu-latest", "macos-latest", "windows-latest"]'
+
   golangci-lint:
-    name: golangci-lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-      - name: Setup Go
-        uses: actions/setup-go@v1
-        with:
-          go-version: 1.18.1
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: v1.45.2
-  restrictNSMDeps:
-    name: Restrict dependencies on github.com/networkservicemesh/*
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Restrict dependencies on github.com/networkservicemesh/*
-        run: |
-          for i in $(grep github.com/networkservicemesh/ go.mod |grep -v '^module' | sed 's;.*\(github.com\/networkservicemesh\/[a-zA-z\/]*\).*;\1;g' | sort -u);do
-            if [ "${i}" != "github.com/networkservicemesh/sdk" ] && [ "${i}" != "github.com/networkservicemesh/api" ]; then
-              echo Dependency on "${i}" is forbidden
-              exit 1
-            fi
-          done
+    uses: networkservicemesh/.github/.github/workflows/golangci-lint.yaml@main
+
+  restrict-nsm-deps:
+    uses: networkservicemesh/.github/.github/workflows/restrict-nsm-deps.yaml@main
+    with:
+      allowed_repositories: "api, sdk"
+
   checkgomod:
-    name: check go.mod and go.sum
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v1
-        with:
-          go-version: 1.18.1
-      - run: go mod tidy
-      - name: Check for changes in go.mod or go.sum
-        run: |
-          git diff --name-only --exit-code go.mod || ( echo "Run go tidy" && false )
-          git diff --name-only --exit-code go.sum || ( echo "Run go tidy" && false )
-  excludereplace:
-    name: Exclude Replace in go.mod
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v2
-      - name: Exclude replace in go.mod
-        run: |
-          grep ^replace go.mod || exit 0
-          exit 1
+    uses: networkservicemesh/.github/.github/workflows/checkgomod.yaml@main
+
+  exclude-replace:
+    uses: networkservicemesh/.github/.github/workflows/exclude-replace.yaml@main
+
   gogenerate:
     name: Check generated files
     runs-on: ubuntu-latest
