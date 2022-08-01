@@ -299,10 +299,10 @@ github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d/go.mod h1:+n7T8m
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
-github.com/networkservicemesh/api v1.4.1-0.20220711153918-a59689088578 h1:2MZD6SGFULqTgMKA8BFy7F+ldRErAyxsWht7oCwCVRM=
-github.com/networkservicemesh/api v1.4.1-0.20220711153918-a59689088578/go.mod h1:hOF2844BSstH1311oDMDgqqXS+kdc77htZNPRKl9mf8=
-github.com/networkservicemesh/sdk v0.5.1-0.20220728125347-990b34144761 h1:dJKtHDsa4rIZv/IhFzGV3/QVcmBZx5dDvxHSs+ZNhWs=
-github.com/networkservicemesh/sdk v0.5.1-0.20220728125347-990b34144761/go.mod h1:aT31j34psbMwTmyxgKZweiuYv783A1levN9nSKUVVp0=
+github.com/networkservicemesh/api v1.5.0 h1:ewAXJJyY0XlI+fGyGxa8mU4/z3Ro37+BTnE0VHMn8g0=
+github.com/networkservicemesh/api v1.5.0/go.mod h1:hOF2844BSstH1311oDMDgqqXS+kdc77htZNPRKl9mf8=
+github.com/networkservicemesh/sdk v1.5.0 h1:b5z4ITqg6GWFQx19+Pq16x1mB7baLnmId7apLypDakM=
+github.com/networkservicemesh/sdk v1.5.0/go.mod h1:2CgyusmM91WwTZviI0EECs6akAS/1etrzxcZwoYWHKU=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nxadm/tail v1.4.4 h1:DQuhQpB1tVlglWS2hLQ5OV6B5r8aGxSrPc5Qo6uTN78=
