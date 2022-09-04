@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
@@ -39,6 +40,7 @@ import (
 type etcdNSRegistryServer struct {
 	chainContext context.Context
 	client       versioned.Interface
+	versions     sync.Map
 	ns           string
 }
 
@@ -83,6 +85,8 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 	}
 	apiResp.Spec.DeepCopyInto((*v1.NetworkServiceSpec)(request))
 	request.Name = apiResp.Name
+
+	n.versions.Store(apiResp.Spec.Name, apiResp.ResourceVersion)
 
 	return (*registry.NetworkService)(&apiResp.Spec), nil
 }
@@ -168,13 +172,19 @@ func (n *etcdNSRegistryServer) Unregister(ctx context.Context, request *registry
 	if err != nil {
 		return nil, err
 	}
-	err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Delete(
-		ctx,
-		request.Name,
-		metav1.DeleteOptions{},
-	)
-	if err != nil {
-		return nil, err
+	if v, ok := n.versions.Load(request.Name); ok {
+		version := v.(string)
+		err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Delete(
+			ctx,
+			request.Name,
+			metav1.DeleteOptions{
+				Preconditions: &metav1.Preconditions{
+					ResourceVersion: &version,
+				},
+			})
+		if err != nil {
+			return nil, err
+		}
 	}
 	return resp, nil
 }
