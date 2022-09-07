@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2022 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
@@ -39,6 +42,7 @@ import (
 type etcdNSERegistryServer struct {
 	chainContext context.Context
 	client       versioned.Interface
+	versions     sync.Map
 	ns           string
 }
 
@@ -86,6 +90,8 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 		return nil, err
 	}
 
+	n.versions.Store(apiResp.Spec.Name, apiResp.ResourceVersion)
+
 	return (*registry.NetworkServiceEndpoint)(&apiResp.Spec), nil
 }
 
@@ -119,12 +125,20 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 	if err != nil {
 		return nil, err
 	}
-	err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(
-		ctx,
-		request.Name,
-		metav1.DeleteOptions{})
-	if err != nil {
-		return nil, err
+
+	if v, ok := n.versions.Load(request.Name); ok {
+		version := v.(string)
+		err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(
+			ctx,
+			request.Name,
+			metav1.DeleteOptions{
+				Preconditions: &metav1.Preconditions{
+					ResourceVersion: &version,
+				},
+			})
+		if err != nil {
+			return nil, err
+		}
 	}
 	return resp, nil
 }
