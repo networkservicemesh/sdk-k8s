@@ -26,6 +26,7 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	podresources "k8s.io/kubelet/pkg/apis/podresources/v1alpha1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
@@ -55,7 +56,7 @@ func (km *Client) GetPodResourcesListerClient(ctx context.Context) (podresources
 	logger := log.FromContext(ctx).WithField("podresources.Client", "GetPodResourcesListerClient")
 
 	socketURL := grpcutils.AddressToURL(socketpath.SocketPath(km.podResourcesSocket))
-	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot connect to pod resources kubelet service")
 	}

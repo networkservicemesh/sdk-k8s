@@ -25,6 +25,7 @@ import (
 	"path"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
@@ -49,7 +50,7 @@ func (rs *registrationServer) Register(ctx context.Context, request *pluginapi.R
 
 	socketPath := socketpath.SocketPath(path.Join(rs.devicePluginPath, request.Endpoint))
 	socketURL := grpcutils.AddressToURL(socketPath)
-	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		logger.Errorf("failed to connect to %v", socketPath.String())
 		return nil, err
