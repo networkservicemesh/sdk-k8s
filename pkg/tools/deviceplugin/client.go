@@ -29,6 +29,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
@@ -87,7 +88,7 @@ func (c *Client) StartDeviceServer(ctx context.Context, deviceServer pluginapi.D
 	defer cancel()
 
 	logger.Info("check device server operational")
-	conn, err := grpc.DialContext(dialCtx, socketURL.String(), grpc.WithBlock(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(dialCtx, socketURL.String(), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		logger.Errorf("failed to dial kubelet api: %s", err.Error())
 		return "", err
@@ -104,7 +105,7 @@ func (c *Client) RegisterDeviceServer(ctx context.Context, request *pluginapi.Re
 	logger := log.FromContext(ctx).WithField("Client", "RegisterDeviceServer")
 
 	socketURL := grpcutils.AddressToURL(socketpath.SocketPath(c.devicePluginSocket))
-	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return errors.Wrap(err, "cannot connect to device plugin kubelet service")
 	}
