@@ -334,5 +334,5 @@ func supplyK8sRegistry(ctx context.Context, expireDuration time.Duration, proxyR
 		ClientSet:        fake.NewSimpleClientset(),
 		ExpirePeriod:     expireDuration,
 		ProxyRegistryURL: proxyRegistryURL,
-	}, options...)
+	}, registryk8s.WithDialOptions(options...))
 }
