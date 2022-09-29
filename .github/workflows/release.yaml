@@ -46,6 +46,8 @@ jobs:
         "cmd-forwarder-sriov",
         "cmd-registry-k8s",
         "cmd-nse-supplier-k8s",
-        "cmd-forwarder-vpp"]
+        "cmd-forwarder-vpp",
+        "cmd-admission-webhook-k8s",
+        "cmd-forwarder-ovs"]
     secrets:
       token: ${{ secrets.NSM_BOT_GITHUB_TOKEN }}
