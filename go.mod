@@ -6,7 +6,7 @@ require (
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.2.0
-	github.com/networkservicemesh/api v1.6.2-0.20221108105251-f71f283feaa5
+	github.com/networkservicemesh/api v1.6.2-0.20221123101008-30ff0ca88ee8
 	github.com/networkservicemesh/sdk v0.5.1-0.20221121202637-1d79bf8c68cd
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.0
@@ -20,6 +20,10 @@ require (
 	k8s.io/client-go v0.22.1
 	k8s.io/kubelet v0.22.1
 )
+
+replace github.com/networkservicemesh/api => github.com/NikitaSkrynnik/api v1.0.1-0.20221020063652-bbb1a2db7c03
+
+replace github.com/networkservicemesh/sdk => ../sdk
 
 require (
 	cloud.google.com/go/compute v1.9.0 // indirect
@@ -37,6 +41,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
 	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect

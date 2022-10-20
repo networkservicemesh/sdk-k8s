@@ -25,6 +25,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/google/uuid"
 	"github.com/networkservicemesh/api/pkg/api/registry"
 	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
 	registryauthorize "github.com/networkservicemesh/sdk/pkg/registry/common/authorize"
@@ -33,11 +34,15 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/registry/common/connect"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/dial"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/expire"
+	"github.com/networkservicemesh/sdk/pkg/registry/common/grpcmetadata"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/setpayload"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/setregistrationtime"
+	"github.com/networkservicemesh/sdk/pkg/registry/common/updatepath"
+	"github.com/networkservicemesh/sdk/pkg/registry/common/updatetoken"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/chain"
 	"github.com/networkservicemesh/sdk/pkg/registry/switchcase"
 	"github.com/networkservicemesh/sdk/pkg/tools/interdomain"
+	"github.com/networkservicemesh/sdk/pkg/tools/token"
 
 	"github.com/networkservicemesh/sdk/pkg/registry/common/begin"
 
@@ -55,6 +60,7 @@ type Config struct {
 }
 
 type serverOptions struct {
+	name                       string
 	authorizeNSRegistryServer  registry.NetworkServiceRegistryServer
 	authorizeNSERegistryServer registry.NetworkServiceEndpointRegistryServer
 	dialOptions                []grpc.DialOption
@@ -62,6 +68,12 @@ type serverOptions struct {
 
 // Option modifies server option value
 type Option func(o *serverOptions)
+
+func WithName(name string) Option {
+	return func(o *serverOptions) {
+		o.name = name
+	}
+}
 
 // WithDialOptions sets grpc.DialOptions for the client
 func WithDialOptions(dialOptions ...grpc.DialOption) Option {
@@ -91,8 +103,9 @@ func WithAuthorizeNSERegistryServer(authorizeNSERegistryServer registry.NetworkS
 }
 
 // NewServer creates new registry server based on k8s etcd db storage
-func NewServer(config *Config, options ...Option) registryserver.Registry {
+func NewServer(config *Config, tokenGenerator token.GeneratorFunc, options ...Option) registryserver.Registry {
 	opts := &serverOptions{
+		name:                       "registry-k8s-" + uuid.New().String(),
 		authorizeNSRegistryServer:  registryauthorize.NewNetworkServiceRegistryServer(registryauthorize.Any()),
 		authorizeNSERegistryServer: registryauthorize.NewNetworkServiceEndpointRegistryServer(registryauthorize.Any()),
 	}
@@ -101,7 +114,10 @@ func NewServer(config *Config, options ...Option) registryserver.Registry {
 	}
 
 	nseChain := chain.NewNetworkServiceEndpointRegistryServer(
+		grpcmetadata.NewNetworkServiceEndpointRegistryServer(),
+		updatepath.NewNetworkServiceEndpointRegistryServer(opts.name),
 		begin.NewNetworkServiceEndpointRegistryServer(),
+		updatetoken.NewNetworkServiceEndpointRegistryServer(tokenGenerator),
 		opts.authorizeNSERegistryServer,
 		switchcase.NewNetworkServiceEndpointRegistryServer(switchcase.NSEServerCase{
 			Condition: func(c context.Context, nse *registry.NetworkServiceEndpoint) bool {
@@ -121,6 +137,7 @@ func NewServer(config *Config, options ...Option) registryserver.Registry {
 						begin.NewNetworkServiceEndpointRegistryClient(),
 						clienturl.NewNetworkServiceEndpointRegistryClient(config.ProxyRegistryURL),
 						clientconn.NewNetworkServiceEndpointRegistryClient(),
+						grpcmetadata.NewNetworkServiceEndpointRegistryClient(),
 						dial.NewNetworkServiceEndpointRegistryClient(config.ChainCtx,
 							dial.WithDialOptions(opts.dialOptions...),
 						),
@@ -140,6 +157,9 @@ func NewServer(config *Config, options ...Option) registryserver.Registry {
 		),
 	)
 	nsChain := chain.NewNetworkServiceRegistryServer(
+		grpcmetadata.NewNetworkServiceRegistryServer(),
+		updatepath.NewNetworkServiceRegistryServer(opts.name),
+		updatetoken.NewNetworkServiceRegistryServer(tokenGenerator),
 		opts.authorizeNSRegistryServer,
 		setpayload.NewNetworkServiceRegistryServer(),
 		switchcase.NewNetworkServiceRegistryServer(
@@ -152,6 +172,7 @@ func NewServer(config *Config, options ...Option) registryserver.Registry {
 						clienturl.NewNetworkServiceRegistryClient(config.ProxyRegistryURL),
 						begin.NewNetworkServiceRegistryClient(),
 						clientconn.NewNetworkServiceRegistryClient(),
+						grpcmetadata.NewNetworkServiceRegistryClient(),
 						dial.NewNetworkServiceRegistryClient(config.ChainCtx,
 							dial.WithDialOptions(opts.dialOptions...),
 						),
