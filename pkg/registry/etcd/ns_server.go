@@ -94,6 +94,7 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 }
 
 func (n *etcdNSRegistryServer) watch(query *registry.NetworkServiceQuery, s registry.NetworkServiceRegistry_FindServer) error {
+	logger := log.FromContext(n.chainContext).WithField("etcdNSRegistryServer", "watch")
 	var watchErr error
 	for watchErr == nil {
 		timeoutSeconds := int64(time.Minute / time.Second)
@@ -108,6 +109,14 @@ func (n *etcdNSRegistryServer) watch(query *registry.NetworkServiceQuery, s regi
 
 		watcher.Stop()
 	}
+
+	// If the watch timed out, return nil to close the stream
+	// cleanly.
+	if errors.Is(watchErr, context.Canceled) {
+		logger.Debug("watch timed out, returning nil")
+		return nil
+	}
+	// If something else went wrong, return the error.
 	return watchErr
 }
 
