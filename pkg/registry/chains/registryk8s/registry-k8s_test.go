@@ -168,7 +168,7 @@ func TestNSMGR_InterdomainUseCase(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	var dnsServer = new(sandbox.FakeDNSResolver)
+	var dnsServer = sandbox.NewFakeResolver()
 
 	cluster1 := sandbox.NewBuilder(ctx, t).
 		SetNodesCount(1).
@@ -240,7 +240,7 @@ func TestNSMGR_FloatingInterdomainUseCase(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	var dnsServer = new(sandbox.FakeDNSResolver)
+	var dnsServer = sandbox.NewFakeResolver()
 
 	cluster1 := sandbox.NewBuilder(ctx, t).
 		SetNodesCount(1).
