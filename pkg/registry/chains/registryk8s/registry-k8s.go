@@ -69,6 +69,7 @@ type serverOptions struct {
 // Option modifies server option value
 type Option func(o *serverOptions)
 
+// WithName sets name for the server
 func WithName(name string) Option {
 	return func(o *serverOptions) {
 		o.name = name
