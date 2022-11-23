@@ -21,9 +21,7 @@ require (
 	k8s.io/kubelet v0.22.1
 )
 
-replace github.com/networkservicemesh/api => github.com/NikitaSkrynnik/api v1.0.1-0.20221020063652-bbb1a2db7c03
-
-replace github.com/networkservicemesh/sdk => ../sdk
+replace github.com/networkservicemesh/sdk => github.com/NikitaSkrynnik/sdk v0.5.1-0.20221123104936-48bc7da5e92a
 
 require (
 	cloud.google.com/go/compute v1.9.0 // indirect
