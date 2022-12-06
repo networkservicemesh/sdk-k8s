@@ -47,7 +47,9 @@ jobs:
         with:
           go-version: 1.18.1
       - name: Generate files
-        run: go generate ./pkg/tools/k8s/gen.go
+        run: |
+          chmod +x $GOPATH/pkg/mod/k8s.io/code-generator@v0.25.4/generate-groups.sh
+          go generate ./pkg/tools/k8s/gen.go
         working-directory: ${{ github.workspace }}/src/github.com/${{ github.repository }}
       - name: Check for changes in generated code
         run: |

@@ -1,8 +1,8 @@
-// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2020-2021 Cisco and/or its affiliates.
+// Copyright (c) 2020-2022 Cisco and/or its affiliates.
 //
-// Copyright (c) 2020-2021 VMware, Inc.
+// Copyright (c) 2020-2022 VMware, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //

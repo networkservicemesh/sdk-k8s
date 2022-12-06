@@ -1,8 +1,8 @@
-// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2020-2021 Cisco and/or its affiliates.
+// Copyright (c) 2020-2022 Cisco and/or its affiliates.
 //
-// Copyright (c) 2020-2021 VMware, Inc.
+// Copyright (c) 2020-2022 VMware, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -110,7 +110,7 @@ func (c *FakeNetworkServices) Update(ctx context.Context, networkService *networ
 // Delete takes name of the networkService and deletes it. Returns an error if one occurs.
 func (c *FakeNetworkServices) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(networkservicesResource, c.ns, name), &networkservicemeshiov1.NetworkService{})
+		Invokes(testing.NewDeleteActionWithOptions(networkservicesResource, c.ns, name, opts), &networkservicemeshiov1.NetworkService{})
 
 	return err
 }
