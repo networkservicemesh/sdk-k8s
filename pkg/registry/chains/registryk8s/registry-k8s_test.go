@@ -36,6 +36,7 @@ import (
 	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
 	"github.com/networkservicemesh/sdk/pkg/tools/sandbox"
+	"github.com/networkservicemesh/sdk/pkg/tools/token"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/chains/registryk8s"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/fake"
@@ -327,7 +328,7 @@ func TestNSMGR_FloatingInterdomainUseCase(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func supplyK8sRegistry(ctx context.Context, expireDuration time.Duration, proxyRegistryURL *url.URL, options ...grpc.DialOption) registryserver.Registry {
+func supplyK8sRegistry(ctx context.Context, tokenGenerator token.GeneratorFunc, expireDuration time.Duration, proxyRegistryURL *url.URL, options ...grpc.DialOption) registryserver.Registry {
 	return registryk8s.NewServer(&registryk8s.Config{
 		ChainCtx:         ctx,
 		Namespace:        "default",

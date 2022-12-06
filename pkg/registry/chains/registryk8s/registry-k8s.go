@@ -33,11 +33,14 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/registry/common/connect"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/dial"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/expire"
+	"github.com/networkservicemesh/sdk/pkg/registry/common/grpcmetadata"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/setpayload"
 	"github.com/networkservicemesh/sdk/pkg/registry/common/setregistrationtime"
+	"github.com/networkservicemesh/sdk/pkg/registry/common/updatepath"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/chain"
 	"github.com/networkservicemesh/sdk/pkg/registry/switchcase"
 	"github.com/networkservicemesh/sdk/pkg/tools/interdomain"
+	"github.com/networkservicemesh/sdk/pkg/tools/token"
 
 	"github.com/networkservicemesh/sdk/pkg/registry/common/begin"
 
@@ -91,7 +94,7 @@ func WithAuthorizeNSERegistryServer(authorizeNSERegistryServer registry.NetworkS
 }
 
 // NewServer creates new registry server based on k8s etcd db storage
-func NewServer(config *Config, options ...Option) registryserver.Registry {
+func NewServer(config *Config, tokenGenerator token.GeneratorFunc, options ...Option) registryserver.Registry {
 	opts := &serverOptions{
 		authorizeNSRegistryServer:  registryauthorize.NewNetworkServiceRegistryServer(registryauthorize.Any()),
 		authorizeNSERegistryServer: registryauthorize.NewNetworkServiceEndpointRegistryServer(registryauthorize.Any()),
@@ -101,6 +104,8 @@ func NewServer(config *Config, options ...Option) registryserver.Registry {
 	}
 
 	nseChain := chain.NewNetworkServiceEndpointRegistryServer(
+		grpcmetadata.NewNetworkServiceEndpointRegistryServer(),
+		updatepath.NewNetworkServiceEndpointRegistryServer(tokenGenerator),
 		begin.NewNetworkServiceEndpointRegistryServer(),
 		opts.authorizeNSERegistryServer,
 		switchcase.NewNetworkServiceEndpointRegistryServer(switchcase.NSEServerCase{
@@ -121,6 +126,7 @@ func NewServer(config *Config, options ...Option) registryserver.Registry {
 						begin.NewNetworkServiceEndpointRegistryClient(),
 						clienturl.NewNetworkServiceEndpointRegistryClient(config.ProxyRegistryURL),
 						clientconn.NewNetworkServiceEndpointRegistryClient(),
+						grpcmetadata.NewNetworkServiceEndpointRegistryClient(),
 						dial.NewNetworkServiceEndpointRegistryClient(config.ChainCtx,
 							dial.WithDialOptions(opts.dialOptions...),
 						),
@@ -140,6 +146,8 @@ func NewServer(config *Config, options ...Option) registryserver.Registry {
 		),
 	)
 	nsChain := chain.NewNetworkServiceRegistryServer(
+		grpcmetadata.NewNetworkServiceRegistryServer(),
+		updatepath.NewNetworkServiceRegistryServer(tokenGenerator),
 		opts.authorizeNSRegistryServer,
 		setpayload.NewNetworkServiceRegistryServer(),
 		switchcase.NewNetworkServiceRegistryServer(
@@ -152,6 +160,7 @@ func NewServer(config *Config, options ...Option) registryserver.Registry {
 						clienturl.NewNetworkServiceRegistryClient(config.ProxyRegistryURL),
 						begin.NewNetworkServiceRegistryClient(),
 						clientconn.NewNetworkServiceRegistryClient(),
+						grpcmetadata.NewNetworkServiceRegistryClient(),
 						dial.NewNetworkServiceRegistryClient(config.ChainCtx,
 							dial.WithDialOptions(opts.dialOptions...),
 						),
