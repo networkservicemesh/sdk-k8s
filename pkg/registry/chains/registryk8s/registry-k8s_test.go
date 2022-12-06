@@ -335,5 +335,5 @@ func supplyK8sRegistry(ctx context.Context, tokenGenerator token.GeneratorFunc, 
 		ClientSet:        fake.NewSimpleClientset(),
 		ExpirePeriod:     expireDuration,
 		ProxyRegistryURL: proxyRegistryURL,
-	}, registryk8s.WithDialOptions(options...))
+	}, tokenGenerator, registryk8s.WithDialOptions(options...))
 }
