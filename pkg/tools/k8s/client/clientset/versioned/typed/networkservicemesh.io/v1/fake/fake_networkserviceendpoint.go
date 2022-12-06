@@ -1,8 +1,8 @@
-// Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
+// Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2020-2021 Cisco and/or its affiliates.
+// Copyright (c) 2020-2022 Cisco and/or its affiliates.
 //
-// Copyright (c) 2020-2021 VMware, Inc.
+// Copyright (c) 2020-2022 VMware, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -122,7 +122,7 @@ func (c *FakeNetworkServiceEndpoints) UpdateStatus(ctx context.Context, networkS
 // Delete takes name of the networkServiceEndpoint and deletes it. Returns an error if one occurs.
 func (c *FakeNetworkServiceEndpoints) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(networkserviceendpointsResource, c.ns, name), &networkservicemeshiov1.NetworkServiceEndpoint{})
+		Invokes(testing.NewDeleteActionWithOptions(networkserviceendpointsResource, c.ns, name, opts), &networkservicemeshiov1.NetworkServiceEndpoint{})
 
 	return err
 }
