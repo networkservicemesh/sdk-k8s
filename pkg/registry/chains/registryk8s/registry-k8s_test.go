@@ -166,7 +166,7 @@ func TestNSMGR_RemoteUsecase(t *testing.T) {
 func TestNSMGR_InterdomainUseCase(t *testing.T) {
 	t.Cleanup(func() { goleak.VerifyNone(t, ignoreKLogDaemon) })
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5000)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
 	var dnsServer = sandbox.NewFakeResolver()
