@@ -59,7 +59,9 @@ type Config struct {
 
 type serverOptions struct {
 	authorizeNSRegistryServer  registry.NetworkServiceRegistryServer
+	authorizeNSRegistryClient  registry.NetworkServiceRegistryClient
 	authorizeNSERegistryServer registry.NetworkServiceEndpointRegistryServer
+	authorizeNSERegistryClient registry.NetworkServiceEndpointRegistryClient
 	dialOptions                []grpc.DialOption
 }
 
@@ -73,7 +75,7 @@ func WithDialOptions(dialOptions ...grpc.DialOption) Option {
 	}
 }
 
-// WithAuthorizeNSRegistryServer sets authorization NetworkServiceRegistry chain element
+// WithAuthorizeNSRegistryServer sets server authorization NetworkServiceRegistry chain element
 func WithAuthorizeNSRegistryServer(authorizeNSRegistryServer registry.NetworkServiceRegistryServer) Option {
 	if authorizeNSRegistryServer == nil {
 		panic("authorizeNSRegistryServer cannot be nil")
@@ -83,7 +85,7 @@ func WithAuthorizeNSRegistryServer(authorizeNSRegistryServer registry.NetworkSer
 	}
 }
 
-// WithAuthorizeNSERegistryServer sets authorization NetworkServiceEndpointRegistry chain element
+// WithAuthorizeNSERegistryServer sets server authorization NetworkServiceEndpointRegistry chain element
 func WithAuthorizeNSERegistryServer(authorizeNSERegistryServer registry.NetworkServiceEndpointRegistryServer) Option {
 	if authorizeNSERegistryServer == nil {
 		panic("authorizeNSERegistryServer cannot be nil")
@@ -93,11 +95,33 @@ func WithAuthorizeNSERegistryServer(authorizeNSERegistryServer registry.NetworkS
 	}
 }
 
+// WithAuthorizeNSRegistryClient sets client authorization NetworkServiceRegistry chain element
+func WithAuthorizeNSRegistryClient(authorizeNSRegistryClient registry.NetworkServiceRegistryClient) Option {
+	if authorizeNSRegistryClient == nil {
+		panic("authorizeNSRegistryClient cannot be nil")
+	}
+	return func(o *serverOptions) {
+		o.authorizeNSRegistryClient = authorizeNSRegistryClient
+	}
+}
+
+// WithAuthorizeNSERegistryClient sets client authorization NetworkServiceEndpointRegistry chain element
+func WithAuthorizeNSERegistryClient(authorizeNSERegistryClient registry.NetworkServiceEndpointRegistryClient) Option {
+	if authorizeNSERegistryClient == nil {
+		panic("authorizeNSERegistryClient cannot be nil")
+	}
+	return func(o *serverOptions) {
+		o.authorizeNSERegistryClient = authorizeNSERegistryClient
+	}
+}
+
 // NewServer creates new registry server based on k8s etcd db storage
 func NewServer(config *Config, tokenGenerator token.GeneratorFunc, options ...Option) registryserver.Registry {
 	opts := &serverOptions{
 		authorizeNSRegistryServer:  registryauthorize.NewNetworkServiceRegistryServer(registryauthorize.Any()),
 		authorizeNSERegistryServer: registryauthorize.NewNetworkServiceEndpointRegistryServer(registryauthorize.Any()),
+		authorizeNSRegistryClient:  registryauthorize.NewNetworkServiceRegistryClient(registryauthorize.Any()),
+		authorizeNSERegistryClient: registryauthorize.NewNetworkServiceEndpointRegistryClient(registryauthorize.Any()),
 	}
 	for _, opt := range options {
 		opt(opts)
@@ -105,8 +129,8 @@ func NewServer(config *Config, tokenGenerator token.GeneratorFunc, options ...Op
 
 	nseChain := chain.NewNetworkServiceEndpointRegistryServer(
 		grpcmetadata.NewNetworkServiceEndpointRegistryServer(),
-		updatepath.NewNetworkServiceEndpointRegistryServer(tokenGenerator),
 		begin.NewNetworkServiceEndpointRegistryServer(),
+		updatepath.NewNetworkServiceEndpointRegistryServer(tokenGenerator),
 		opts.authorizeNSERegistryServer,
 		switchcase.NewNetworkServiceEndpointRegistryServer(switchcase.NSEServerCase{
 			Condition: func(c context.Context, nse *registry.NetworkServiceEndpoint) bool {
@@ -126,6 +150,7 @@ func NewServer(config *Config, tokenGenerator token.GeneratorFunc, options ...Op
 						begin.NewNetworkServiceEndpointRegistryClient(),
 						clienturl.NewNetworkServiceEndpointRegistryClient(config.ProxyRegistryURL),
 						clientconn.NewNetworkServiceEndpointRegistryClient(),
+						opts.authorizeNSERegistryClient,
 						grpcmetadata.NewNetworkServiceEndpointRegistryClient(),
 						dial.NewNetworkServiceEndpointRegistryClient(config.ChainCtx,
 							dial.WithDialOptions(opts.dialOptions...),
@@ -160,6 +185,7 @@ func NewServer(config *Config, tokenGenerator token.GeneratorFunc, options ...Op
 						clienturl.NewNetworkServiceRegistryClient(config.ProxyRegistryURL),
 						begin.NewNetworkServiceRegistryClient(),
 						clientconn.NewNetworkServiceRegistryClient(),
+						opts.authorizeNSRegistryClient,
 						grpcmetadata.NewNetworkServiceRegistryClient(),
 						dial.NewNetworkServiceRegistryClient(config.ChainCtx,
 							dial.WithDialOptions(opts.dialOptions...),
