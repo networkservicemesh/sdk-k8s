@@ -129,9 +129,9 @@ func NewServer(config *Config, tokenGenerator token.GeneratorFunc, options ...Op
 
 	nseChain := chain.NewNetworkServiceEndpointRegistryServer(
 		grpcmetadata.NewNetworkServiceEndpointRegistryServer(),
-		begin.NewNetworkServiceEndpointRegistryServer(),
 		updatepath.NewNetworkServiceEndpointRegistryServer(tokenGenerator),
 		opts.authorizeNSERegistryServer,
+		begin.NewNetworkServiceEndpointRegistryServer(),
 		switchcase.NewNetworkServiceEndpointRegistryServer(switchcase.NSEServerCase{
 			Condition: func(c context.Context, nse *registry.NetworkServiceEndpoint) bool {
 				if interdomain.Is(nse.GetName()) {
@@ -164,7 +164,7 @@ func NewServer(config *Config, tokenGenerator token.GeneratorFunc, options ...Op
 				Condition: func(c context.Context, nse *registry.NetworkServiceEndpoint) bool { return true },
 				Action: chain.NewNetworkServiceEndpointRegistryServer(
 					setregistrationtime.NewNetworkServiceEndpointRegistryServer(),
-					expire.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.ExpirePeriod),
+					expire.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, expire.WithDefaultExpiration(config.ExpirePeriod)),
 					etcd.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
 				),
 			},
