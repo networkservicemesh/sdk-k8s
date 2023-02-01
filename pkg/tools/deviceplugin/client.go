@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -65,7 +67,7 @@ func (c *Client) StartDeviceServer(ctx context.Context, deviceServer pluginapi.D
 	socketPath := socketpath.SocketPath(path.Join(c.devicePluginPath, socket))
 	logger.Infof("socket = %v", socket)
 	if err := socketpath.SocketCleanup(socketPath); err != nil {
-		return "", err
+		return "", errors.Wrapf(err, "failed to cleanup the socket %s", socketPath)
 	}
 
 	grpcServer := grpc.NewServer()
@@ -91,7 +93,7 @@ func (c *Client) StartDeviceServer(ctx context.Context, deviceServer pluginapi.D
 	conn, err := grpc.DialContext(dialCtx, socketURL.String(), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		logger.Errorf("failed to dial kubelet api: %s", err.Error())
-		return "", err
+		return "", errors.Wrapf(err, "failed to create a client connection to the %s", socketURL.String())
 	}
 	_ = conn.Close()
 
@@ -164,13 +166,13 @@ func (c *Client) MonitorKubeletRestart(ctx context.Context) (chan struct{}, erro
 func watchOn(paths ...string) (*fsnotify.Watcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get a file system notifications watcher")
 	}
 
 	for _, path := range paths {
 		if err := watcher.Add(path); err != nil {
 			_ = watcher.Close()
-			return nil, err
+			return nil, errors.Wrapf(err, "failed to watch a %s", path)
 		}
 	}
 

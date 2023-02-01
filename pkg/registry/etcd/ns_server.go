@@ -1,6 +1,6 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022 Cisco and/or its affiliates.
+// Copyright (c) 2022-2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -20,13 +20,13 @@ package etcd
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -61,11 +61,12 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 		},
 		metav1.CreateOptions{},
 	)
+	err = errors.Wrapf(err, "failed to create a pod %s in a namespace %s", resp.Name, n.ns)
 	if apierrors.IsAlreadyExists(err) {
 		var ns *v1.NetworkService
 		list, erro := n.client.NetworkservicemeshV1().NetworkServices("").List(ctx, metav1.ListOptions{})
 		if erro != nil {
-			return nil, erro
+			return nil, errors.Wrap(erro, "failed to get a list of NetworkServices")
 		}
 		for i := 0; i < len(list.Items); i++ {
 			item := (*registry.NetworkService)(&list.Items[i].Spec)
@@ -80,6 +81,7 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 
 		if ns != nil {
 			apiResp, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, ns, metav1.UpdateOptions{})
+			err = errors.Wrapf(err, "failed to update a pod %s in a namespace %s", ns.Name, n.ns)
 		}
 	}
 	if err != nil {
@@ -102,7 +104,7 @@ func (n *etcdNSRegistryServer) watch(query *registry.NetworkServiceQuery, s regi
 			TimeoutSeconds: &timeoutSeconds,
 		})
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get a watch.Interface for a requested networkServices")
 		}
 
 		watchErr = n.handleWatcher(watcher, query, s)
@@ -131,7 +133,7 @@ func (n *etcdNSRegistryServer) handleWatcher(
 	for watcherOpened := true; watcherOpened; {
 		select {
 		case <-s.Context().Done():
-			return s.Context().Err()
+			return errors.WithStack(s.Context().Err())
 		case event, watcherOpened = <-watcher.ResultChan():
 			if !watcherOpened {
 				logger.Warn("watcher is closed, retrying")
@@ -145,7 +147,7 @@ func (n *etcdNSRegistryServer) handleWatcher(
 			if matchutils.MatchNetworkServices(query.NetworkService, item) {
 				err := s.Send(&registry.NetworkServiceResponse{NetworkService: item})
 				if err != nil {
-					return err
+					return errors.Wrapf(err, "NetworkServiceRegistry find server failed to send a response %s", item.String())
 				}
 			}
 		}
@@ -156,7 +158,7 @@ func (n *etcdNSRegistryServer) handleWatcher(
 func (n *etcdNSRegistryServer) Find(query *registry.NetworkServiceQuery, s registry.NetworkServiceRegistry_FindServer) error {
 	list, err := n.client.NetworkservicemeshV1().NetworkServices("").List(s.Context(), metav1.ListOptions{})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get a list of NetworkServices")
 	}
 	for i := 0; i < len(list.Items); i++ {
 		item := (*registry.NetworkService)(&list.Items[i].Spec)
@@ -166,7 +168,7 @@ func (n *etcdNSRegistryServer) Find(query *registry.NetworkServiceQuery, s regis
 		if matchutils.MatchNetworkServices(query.NetworkService, item) {
 			err := s.Send(&registry.NetworkServiceResponse{NetworkService: item})
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "NetworkServiceRegistry find server failed to send a response %s", item.String())
 			}
 		}
 	}
@@ -194,7 +196,7 @@ func (n *etcdNSRegistryServer) Unregister(ctx context.Context, request *registry
 				},
 			})
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "failed to delete a NetworkServices %s in a namespace %s", request.Name, n.ns)
 		}
 	}
 	return resp, nil

@@ -1,5 +1,7 @@
 // Copyright (c) 2021-2022 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -123,7 +125,7 @@ func (s *createPodServer) Request(ctx context.Context, request *networkservice.N
 
 	name, err := s.createPod(ctx, nodeName, request.GetConnection())
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	return nil, errors.Errorf("cannot provide required networkservice: endpoint created as %v", name)
@@ -139,19 +141,19 @@ func (s *createPodServer) createPod(ctx context.Context, nodeName string, conn *
 			return uuid.New().String()
 		},
 	}).Parse(s.podTemplate)
-
 	if err != nil {
-		return "", errors.WithStack(err)
+		return "", errors.Wrapf(err, "failed to parse a pod template %s", s.podTemplate)
 	}
+
 	var buffer bytes.Buffer
 	if err = t.Execute(&buffer, conn); err != nil {
-		return "", errors.WithStack(err)
+		return "", errors.Wrapf(err, "failed to apply a parsed template %s", s.podTemplate)
 	}
 	var pod corev1.Pod
 
 	_, _, err = s.deserializer.Decode(buffer.Bytes(), nil, &pod)
 	if err != nil {
-		return "", errors.WithStack(err)
+		return "", errors.Wrap(err, "failed to deserialize a pod data")
 	}
 
 	if pod.Spec.NodeName == "" {
@@ -166,7 +168,7 @@ func (s *createPodServer) createPod(ctx context.Context, nodeName string, conn *
 
 	resp, err := s.client.CoreV1().Pods(s.myNamespace).Create(ctx, &pod, metav1.CreateOptions{})
 	if err != nil {
-		return "", errors.WithStack(err)
+		return "", errors.Wrapf(err, "failed to create a pod %s in a namespace %s", pod.Name, s.myNamespace)
 	}
 
 	return resp.GetObjectMeta().GetName(), nil

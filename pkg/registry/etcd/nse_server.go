@@ -1,6 +1,6 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022 Cisco and/or its affiliates.
+// Copyright (c) 2022-2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -20,13 +20,13 @@ package etcd
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -65,11 +65,12 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 		},
 		metav1.CreateOptions{},
 	)
+	err = errors.Wrapf(err, "failed to create a pod %s in a namespace %s", resp.Name, n.ns)
 	if apierrors.IsAlreadyExists(err) {
 		var nse *v1.NetworkServiceEndpoint
 		list, erro := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(ctx, metav1.ListOptions{})
 		if erro != nil {
-			return nil, erro
+			return nil, errors.Wrap(erro, "failed to get a list of NetworkServiceEndpoints")
 		}
 		for i := 0; i < len(list.Items); i++ {
 			item := (*registry.NetworkServiceEndpoint)(&list.Items[i].Spec)
@@ -84,6 +85,7 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 
 		if nse != nil {
 			apiResp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(ctx, nse, metav1.UpdateOptions{})
+			err = errors.Wrapf(err, "failed to update a pod %s in a namespace %s", nse.Name, n.ns)
 		}
 	}
 	if err != nil {
@@ -98,7 +100,7 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
 	list, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(s.Context(), metav1.ListOptions{})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get a list of NetworkServiceEndpoints")
 	}
 	for i := 0; i < len(list.Items); i++ {
 		item := (*registry.NetworkServiceEndpoint)(&list.Items[i].Spec)
@@ -108,7 +110,7 @@ func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery
 		if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
 			err := s.Send(&registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: item})
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "NetworkServiceEndpointRegistry find server failed to send a response %s", item.String())
 			}
 		}
 	}
@@ -123,7 +125,7 @@ func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery
 func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registry.NetworkServiceEndpoint) (*empty.Empty, error) {
 	resp, err := next.NetworkServiceEndpointRegistryServer(ctx).Unregister(ctx, request)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	if v, ok := n.versions.Load(request.Name); ok {
@@ -137,7 +139,7 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 				},
 			})
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "failed to delete a NetworkServiceEndpoints %s in a namespace %s", request.Name, n.ns)
 		}
 	}
 	return resp, nil
@@ -152,7 +154,7 @@ func (n *etcdNSERegistryServer) watch(query *registry.NetworkServiceEndpointQuer
 			TimeoutSeconds: &timeoutSeconds,
 		})
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get a watch.Interface for a requested networkServiceEndpoints")
 		}
 
 		watchErr = n.handleWatcher(watcher, query, s)
@@ -181,9 +183,9 @@ func (n *etcdNSERegistryServer) handleWatcher(
 	for watcherOpened := true; watcherOpened; {
 		select {
 		case <-n.chainContext.Done():
-			return n.chainContext.Err()
+			return errors.WithStack(n.chainContext.Err())
 		case <-s.Context().Done():
-			return s.Context().Err()
+			return errors.WithStack(s.Context().Err())
 		case event, watcherOpened = <-watcher.ResultChan():
 			if !watcherOpened {
 				logger.Warn("watcher is closed, retrying")
@@ -203,7 +205,7 @@ func (n *etcdNSERegistryServer) handleWatcher(
 			if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
 				err := s.Send(nseResp)
 				if err != nil {
-					return err
+					return errors.Wrapf(err, "NetworkServiceEndpointRegistry find server failed to send a response %s", nseResp.String())
 				}
 			}
 		}

@@ -2,6 +2,8 @@
 //
 // Copyright (c) 2021-2022 Nordix Foundation.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +33,7 @@ import (
 	podresourcesapi "k8s.io/kubelet/pkg/apis/podresources/v1alpha1"
 
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/pkg/errors"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/podresources"
 )
@@ -78,7 +81,7 @@ func StartServers(
 	resp, err := resourceListerClient.List(ctx, new(podresourcesapi.ListPodResourcesRequest))
 	if err != nil {
 		logger.Errorf("resourceListerClient unavailable: %+v", err)
-		return err
+		return errors.Wrap(err, "failed to get a podresourcesapi.ListPodResourcesRequest")
 	}
 	_ = tokenPool.Restore(respToDeviceIDs(resp))
 
@@ -184,20 +187,20 @@ func (s *devicePluginServer) ListAndWatch(_ *pluginapi.Empty, server pluginapi.D
 		resp, err := s.resourceListerClient.List(s.ctx, new(podresourcesapi.ListPodResourcesRequest))
 		if err != nil {
 			logger.Errorf("resourceListerClient unavailable: %+v", err)
-			return err
+			return errors.Wrap(err, "failed to get a podresourcesapi.ListPodResourcesRequest")
 		}
 
 		s.updateDevices(s.respToDeviceIDs(resp))
 
 		if err := server.Send(s.listAndWatchResponse()); err != nil {
 			logger.Errorf("server unavailable: %+v", err)
-			return err
+			return errors.Wrapf(err, "DevicePlugin_ListAndWatchServer failed to send %s", s.listAndWatchResponse().String())
 		}
 
 		select {
 		case <-s.ctx.Done():
 			logger.Info("server stopped")
-			return s.ctx.Err()
+			return errors.WithStack(s.ctx.Err())
 		case <-time.After(s.resourcePollTimeout):
 		case <-s.updateCh:
 		}
@@ -289,6 +292,7 @@ func (s *devicePluginServer) useDevices(ids []string) (err error) {
 	for i := range ids {
 		err = s.tokenPool.Allocate(ids[i])
 		if err != nil {
+			err = errors.Wrapf(err, "failed to mark a %s token as \"allocated\"", ids[i])
 			break
 		}
 		s.allocatedTokens[ids[i]] = true

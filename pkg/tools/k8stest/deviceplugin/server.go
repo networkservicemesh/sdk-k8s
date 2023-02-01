@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,6 +32,7 @@ import (
 
 	"github.com/networkservicemesh/sdk/pkg/tools/grpcutils"
 	"github.com/networkservicemesh/sdk/pkg/tools/log"
+	"github.com/pkg/errors"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/socketpath"
 )
@@ -53,14 +56,14 @@ func (rs *registrationServer) Register(ctx context.Context, request *pluginapi.R
 	conn, err := grpc.DialContext(ctx, socketURL.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		logger.Errorf("failed to connect to %v", socketPath.String())
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to connect to %v", socketPath.String())
 	}
 
 	client := pluginapi.NewDevicePluginClient(conn)
 	receiver, err := client.ListAndWatch(ctx, &pluginapi.Empty{})
 	if err != nil {
 		logger.Errorf("failed to ListAndWatch on %v", socketPath.String())
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to ListAndWatch on %v", socketPath.String())
 	}
 
 	go func() {
