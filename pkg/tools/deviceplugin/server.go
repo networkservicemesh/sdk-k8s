@@ -200,7 +200,7 @@ func (s *devicePluginServer) ListAndWatch(_ *pluginapi.Empty, server pluginapi.D
 		select {
 		case <-s.ctx.Done():
 			logger.Info("server stopped")
-			return errors.WithStack(s.ctx.Err())
+			return errors.Wrap(s.ctx.Err(), "application context is done")
 		case <-time.After(s.resourcePollTimeout):
 		case <-s.updateCh:
 		}

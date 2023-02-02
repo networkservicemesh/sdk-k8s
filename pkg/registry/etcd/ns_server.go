@@ -133,7 +133,7 @@ func (n *etcdNSRegistryServer) handleWatcher(
 	for watcherOpened := true; watcherOpened; {
 		select {
 		case <-s.Context().Done():
-			return errors.WithStack(s.Context().Err())
+			return errors.Wrap(s.Context().Err(), "find context is done")
 		case event, watcherOpened = <-watcher.ResultChan():
 			if !watcherOpened {
 				logger.Warn("watcher is closed, retrying")

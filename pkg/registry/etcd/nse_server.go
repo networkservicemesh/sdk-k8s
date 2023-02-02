@@ -183,9 +183,9 @@ func (n *etcdNSERegistryServer) handleWatcher(
 	for watcherOpened := true; watcherOpened; {
 		select {
 		case <-n.chainContext.Done():
-			return errors.WithStack(n.chainContext.Err())
+			return errors.Wrap(n.chainContext.Err(), "application context is done")
 		case <-s.Context().Done():
-			return errors.WithStack(s.Context().Err())
+			return errors.Wrap(s.Context().Err(), "find context is done")
 		case event, watcherOpened = <-watcher.ResultChan():
 			if !watcherOpened {
 				logger.Warn("watcher is closed, retrying")
