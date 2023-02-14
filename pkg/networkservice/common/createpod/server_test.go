@@ -1,6 +1,6 @@
 // Copyright (c) 2021-2022 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2021-2022 Doc.ai and/or its affiliates.
+// Copyright (c) 2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -93,7 +93,7 @@ objectmeta:
 		Connection: &networkservice.Connection{},
 	})
 	require.Error(t, err)
-	require.Equal(t, "pods \"nse-1\" already exists", err.Error())
+	require.Equal(t, "failed to create a pod nse-1 in a namespace pod-ns-name: pods \"nse-1\" already exists", err.Error())
 
 	podList, err := clientSet.CoreV1().Pods(testNamespace).List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)

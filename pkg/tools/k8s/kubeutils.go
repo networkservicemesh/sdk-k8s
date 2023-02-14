@@ -1,5 +1,7 @@
 // Copyright (c) 2020 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
@@ -39,11 +42,14 @@ func NewClientSetConfig() (*rest.Config, error) {
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		logrus.Infof("Unable to get in cluster config, attempting to fall back to kubeconfig: %v", err)
-		return clientcmd.BuildConfigFromFlags("", configPath)
+		logrus.Infof("Unable to get in cluster config, attempting to fall back to kubeconfig: %v", errors.WithStack(err))
+		config, err = clientcmd.BuildConfigFromFlags("", configPath)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to build a config from a %s", configPath)
+		}
 	}
 
-	return config, err
+	return config, nil
 }
 
 // NewVersionedClient creates a new networkservicemesh.io ClietSet for the default kubernetes config.
@@ -53,5 +59,5 @@ func NewVersionedClient() (versioned.Interface, *rest.Config, error) {
 		return nil, nil, err
 	}
 	nsmClientSet, err := versioned.NewForConfig(config)
-	return nsmClientSet, config, err
+	return nsmClientSet, config, errors.Wrapf(err, "failed to create a new Clientset for the given config %s", config.String())
 }
