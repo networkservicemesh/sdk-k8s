@@ -1,6 +1,6 @@
 // Copyright (c) 2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022 Cisco and/or its affiliates.
+// Copyright (c) 2022-2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -20,11 +20,14 @@ package etcd_test
 
 import (
 	"context"
+	"errors"
+	"io"
 	"testing"
 	"time"
 
 	"github.com/networkservicemesh/api/pkg/api/registry"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
@@ -93,4 +96,34 @@ func Test_K8sNSERegistry_Find(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "nse-1", nseResp.NetworkServiceEndpoint.Name)
+}
+
+func Test_K8sNSERegistry_Find_ExpiredNSE(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	var myClientset = fake.NewSimpleClientset()
+	_, err := myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").Create(ctx, &v1.NetworkServiceEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "nse-1",
+		},
+		Spec: v1.NetworkServiceEndpointSpec{
+			ExpirationTime: timestamppb.New(time.Now().Add(-time.Hour)),
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	c := adapters.NetworkServiceEndpointServerToClient(etcd.NewNetworkServiceEndpointRegistryServer(ctx, "ns-1", myClientset))
+	stream, err := c.Find(ctx, &registry.NetworkServiceEndpointQuery{
+		NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{
+			Name: "nse-1",
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = stream.Recv()
+	require.True(t, errors.Is(err, io.EOF))
+	resp, err := myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").List(ctx, metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 0)
 }
