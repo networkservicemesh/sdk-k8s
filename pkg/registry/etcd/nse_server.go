@@ -1,6 +1,6 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022 Cisco and/or its affiliates.
+// Copyright (c) 2022-2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -105,6 +105,14 @@ func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery
 		if item.Name == "" {
 			item.Name = list.Items[i].Name
 		}
+		if item.ExpirationTime != nil && item.ExpirationTime.AsTime().Local().Before(time.Now()) {
+			_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, item.Name, metav1.DeleteOptions{
+				Preconditions: &metav1.Preconditions{
+					ResourceVersion: &list.Items[i].ResourceVersion,
+				},
+			})
+			continue
+		}
 		if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
 			err := s.Send(&registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: item})
 			if err != nil {
@@ -191,6 +199,7 @@ func (n *etcdNSERegistryServer) handleWatcher(
 			if event.Type == watch.Deleted {
 				nseResp.Deleted = true
 			}
+
 			if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
 				err := s.Send(nseResp)
 				if err != nil {
