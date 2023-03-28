@@ -108,13 +108,11 @@ func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery
 			item.Name = list.Items[i].Name
 		}
 		if item.ExpirationTime != nil && item.ExpirationTime.AsTime().Local().Before(time.Now()) {
-			go func() {
-				_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, item.Name, metav1.DeleteOptions{
-					Preconditions: &metav1.Preconditions{
-						ResourceVersion: &list.Items[i].ResourceVersion,
-					},
-				})
-			}()
+			_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, item.Name, metav1.DeleteOptions{
+				Preconditions: &metav1.Preconditions{
+					ResourceVersion: &list.Items[i].ResourceVersion,
+				},
+			})
 			continue
 		}
 		if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
