@@ -20,12 +20,12 @@ package etcd_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"testing"
 	"time"
 
 	"github.com/networkservicemesh/api/pkg/api/registry"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
