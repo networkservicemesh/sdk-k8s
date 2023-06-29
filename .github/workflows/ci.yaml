@@ -45,7 +45,7 @@ jobs:
           path: ${{ github.workspace }}/src/github.com/${{ github.repository }}
       - uses: actions/setup-go@v1
         with:
-          go-version: 1.18.1
+          go-version: 1.20
       - name: Generate files
         run: |
           go generate ./pkg/tools/k8s/gen.go

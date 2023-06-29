@@ -1,18 +1,17 @@
 ---
 run:
-  # concurrency: 6
-  go: "1.17"
+  go: '1.20'
   timeout: 2m
   issues-exit-code: 1
   tests: true
 linters-settings:
   goheader:
-    template-path: ".license/template.txt"
+    template-path: .license/template.txt
     values:
       regexp:
         company: .*
-        copyright-holder: Copyright \(c\) ({{year-range}}) {{company}}\n\n
-        copyright-holders: ({{copyright-holder}})+
+        copyright-holder: 'Copyright \(c\) ({{year-range}}) {{company}}\n\n'
+        copyright-holders: '({{copyright-holder}})+'
   errcheck:
     check-type-assertions: false
     check-blank: false
@@ -38,17 +37,15 @@ linters-settings:
   funlen:
     Lines: 100
     Statements: 50
+  depguard:
+    rules:
+      main:
+        deny:
+          - pkg: errors
+            desc: Please use github.com/pkg/errors instead of errors in go imports
   goconst:
     min-len: 2
     min-occurrences: 2
-  depguard:
-    list-type: blacklist
-    include-go-root: false
-    packages:
-      - errors
-    packages-with-error-message:
-      # specify an error message to output when a blacklisted package is used
-      - errors: "Please use \"github.com/pkg/errors\" instead of \"errors\" in go imports"
   misspell:
     locale: US
   unparam:
@@ -128,13 +125,12 @@ linters-settings:
 linters:
   disable-all: true
   enable:
-    # - rowserrcheck
     - goheader
     - bodyclose
     - deadcode
-    - depguard
     - dogsled
     - dupl
+    - depguard
     - errcheck
     - funlen
     - gochecknoinits
@@ -149,7 +145,6 @@ linters:
     - govet
     - ineffassign
     - interfacer
-    # - lll
     - misspell
     - nakedret
     - scopelint
@@ -159,7 +154,6 @@ linters:
     - typecheck
     - unconvert
     - unparam
-    # - unused
     - varcheck
     - whitespace
 issues:
