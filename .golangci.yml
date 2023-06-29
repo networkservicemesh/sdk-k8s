@@ -1,3 +1,4 @@
+---
 run:
   go: '1.20'
   timeout: 2m
@@ -160,6 +161,8 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
   exclude-rules:
+    # We really *do* want to pass a pointer to an interface in these cases.  See comments in file for New{Server,Client}
+    # function for why
     - path: pkg/tools/k8s/
       linters:
         - goheader
