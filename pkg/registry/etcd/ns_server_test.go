@@ -1,5 +1,7 @@
 // Copyright (c) 2021 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -93,4 +95,52 @@ func Test_K8sNSRegistry_Find(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "ns-1", nseResp.NetworkService.Name)
+}
+
+func Test_K8sNSRegistry_FindWatch(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	var myClientset = fake.NewSimpleClientset()
+	s := etcd.NewNetworkServiceRegistryServer(ctx, "", myClientset)
+
+	// Start watching
+	c := adapters.NetworkServiceServerToClient(s)
+	stream, err := c.Find(ctx, &registry.NetworkServiceQuery{
+		NetworkService: &registry.NetworkService{
+			Name: "ns-1",
+		},
+		Watch: true,
+	})
+	require.NoError(t, err)
+
+	// Register
+	ns := registry.NetworkService{Name: "ns-1"}
+	_, err = s.Register(ctx, &ns)
+	require.NoError(t, err)
+
+	nsResp, err := stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, "ns-1", nsResp.NetworkService.Name)
+
+	// NS reregisteration. We shouldn't get any updates
+	_, err = s.Register(ctx, ns.Clone())
+	require.NoError(t, err)
+
+	// Update NS again - add payload
+	updatedNS := ns.Clone()
+	updatedNS.Payload = "IPPayload"
+	_, err = myClientset.NetworkservicemeshV1().NetworkServices("").Update(ctx, &v1.NetworkService{
+		Spec: v1.NetworkServiceSpec(*updatedNS.Clone()),
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            updatedNS.Name,
+			ResourceVersion: "2",
+		},
+	}, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	// We should receive only the last update
+	nsResp, err = stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, "IPPayload", nsResp.NetworkService.Payload)
 }

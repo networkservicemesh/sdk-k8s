@@ -98,6 +98,54 @@ func Test_K8sNSERegistry_Find(t *testing.T) {
 	require.Equal(t, "nse-1", nseResp.NetworkServiceEndpoint.Name)
 }
 
+func Test_K8sNSERegistry_FindWatch(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	var myClientset = fake.NewSimpleClientset()
+	s := etcd.NewNetworkServiceEndpointRegistryServer(ctx, "", myClientset)
+
+	// Start watching
+	c := adapters.NetworkServiceEndpointServerToClient(s)
+	stream, err := c.Find(ctx, &registry.NetworkServiceEndpointQuery{
+		NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{
+			Name: "nse-1",
+		},
+		Watch: true,
+	})
+	require.NoError(t, err)
+
+	// Register
+	nse := registry.NetworkServiceEndpoint{Name: "nse-1"}
+	_, err = s.Register(ctx, &nse)
+	require.NoError(t, err)
+
+	nseResp, err := stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, "nse-1", nseResp.NetworkServiceEndpoint.Name)
+
+	// NSE reregisteration. We shouldn't get any updates
+	_, err = s.Register(ctx, nse.Clone())
+	require.NoError(t, err)
+
+	// Update NSE again - add labels
+	updatedNSE := nse.Clone()
+	updatedNSE.NetworkServiceLabels = map[string]*registry.NetworkServiceLabels{"label": {}}
+	_, err = myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("").Update(ctx, &v1.NetworkServiceEndpoint{
+		Spec: v1.NetworkServiceEndpointSpec(*updatedNSE.Clone()),
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            updatedNSE.Name,
+			ResourceVersion: "2",
+		},
+	}, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	// We should receive only the last update
+	nseResp, err = stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, 1, len(nseResp.GetNetworkServiceEndpoint().NetworkServiceLabels))
+}
+
 func Test_K8sNSERegistry_Find_ExpiredNSE(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

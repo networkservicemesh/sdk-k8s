@@ -139,13 +139,22 @@ func (n *etcdNSRegistryServer) handleWatcher(
 				logger.Warn("watcher is closed, retrying")
 				continue
 			}
-			if event.Type != watch.Added {
+			model, ok := event.Object.(*v1.NetworkService)
+			if !ok {
+				logger.Errorf("event: %v", event)
 				continue
 			}
-			model := event.Object.(*v1.NetworkService)
 			item := (*registry.NetworkService)(&model.Spec)
+			if v, ok := n.versions.Load(item.Name); !ok || v == model.ResourceVersion {
+				continue
+			}
+
 			if matchutils.MatchNetworkServices(query.NetworkService, item) {
-				err := s.Send(&registry.NetworkServiceResponse{NetworkService: item})
+				nsResp := &registry.NetworkServiceResponse{NetworkService: item}
+				if event.Type == watch.Deleted {
+					nsResp.Deleted = true
+				}
+				err := s.Send(nsResp)
 				if err != nil {
 					return errors.Wrapf(err, "NetworkServiceRegistry find server failed to send a response %s", item.String())
 				}
