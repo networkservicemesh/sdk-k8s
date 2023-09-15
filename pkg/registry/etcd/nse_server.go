@@ -205,13 +205,15 @@ func (n *etcdNSERegistryServer) handleWatcher(
 				continue
 			}
 			item := (*registry.NetworkServiceEndpoint)(&model.Spec)
-
-			nseResp := &registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: item}
-			if event.Type == watch.Deleted {
-				nseResp.Deleted = true
+			if v, ok := n.versions.Load(item.Name); !ok || v == model.ResourceVersion {
+				continue
 			}
 
 			if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
+				nseResp := &registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: item}
+				if event.Type == watch.Deleted {
+					nseResp.Deleted = true
+				}
 				err := s.Send(nseResp)
 				if err != nil {
 					return errors.Wrapf(err, "NetworkServiceEndpointRegistry find server failed to send a response %s", nseResp.String())
