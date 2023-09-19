@@ -242,8 +242,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/networkservicemesh/api v1.10.1-0.20230822145124-c4a3ece88804 h1:RDbdWrIi+QL4ZKI45ETcT81Ox9DZPl083vDcFqY5AnI=
 github.com/networkservicemesh/api v1.10.1-0.20230822145124-c4a3ece88804/go.mod h1:DO7D13Y4x/A8tQ2cQyUWa9o5wi7XHUB8+vITWRKreCc=
-github.com/networkservicemesh/sdk v0.5.1-0.20230915092224-d68a6f4ada08 h1:Lj5T688Rb7mnPixUH+F3G6vz5SHgznjw1jtqsxRDw6Y=
-github.com/networkservicemesh/sdk v0.5.1-0.20230915092224-d68a6f4ada08/go.mod h1:WrQdP/NEx+2knCVIL0X/dlAkg4y/RFvcXBhRwcz5M2Q=
+github.com/networkservicemesh/sdk v0.5.1-0.20230919032539-bec8a85cfbdc h1:J8KH9EOP3Uw4xJ+O3t9L5/DCT8a9qxVKrZ05l8uPH1c=
+github.com/networkservicemesh/sdk v0.5.1-0.20230919032539-bec8a85cfbdc/go.mod h1:WrQdP/NEx+2knCVIL0X/dlAkg4y/RFvcXBhRwcz5M2Q=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/onsi/ginkgo/v2 v2.1.6 h1:Fx2POJZfKRQcM1pH49qSZiYeu319wji004qX+GDovrU=
 github.com/onsi/gomega v1.20.1 h1:PA/3qinGoukvymdIDV8pii6tiZgC8kbmJO6Z5+b002Q=
