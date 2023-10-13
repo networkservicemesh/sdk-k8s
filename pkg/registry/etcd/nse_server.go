@@ -80,9 +80,9 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 		}
 
 		if nse != nil {
-			apiResp, updErr := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(ctx, nse, metav1.UpdateOptions{})
-			if updErr != nil {
-				return nil, errors.Wrapf(updErr, "failed to update a pod %s in a namespace %s", nse.Name, n.ns)
+			apiResp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(ctx, nse, metav1.UpdateOptions{})
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to update a pod %s in a namespace %s", nse.Name, n.ns)
 			}
 
 			n.versions.Store(apiResp.Spec.Name, apiResp.ResourceVersion)
