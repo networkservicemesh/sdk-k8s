@@ -166,8 +166,8 @@ func NewServer(config *Config, tokenGenerator token.GeneratorFunc, options ...Op
 				Condition: func(c context.Context, nse *registry.NetworkServiceEndpoint) bool { return true },
 				Action: chain.NewNetworkServiceEndpointRegistryServer(
 					setregistrationtime.NewNetworkServiceEndpointRegistryServer(),
-					expire.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, expire.WithDefaultExpiration(config.ExpirePeriod)),
 					etcd.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, config.Namespace, config.ClientSet),
+					expire.NewNetworkServiceEndpointRegistryServer(config.ChainCtx, expire.WithDefaultExpiration(config.ExpirePeriod)),
 				),
 			},
 		),

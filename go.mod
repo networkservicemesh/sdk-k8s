@@ -20,6 +20,8 @@ require (
 	k8s.io/kubelet v0.28.3
 )
 
+replace github.com/networkservicemesh/sdk => github.com/NikitaSkrynnik/sdk v0.5.1-0.20231013060333-6cd7934975bf
+
 require (
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect

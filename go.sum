@@ -5,6 +5,8 @@ cloud.google.com/go/compute v1.23.0 h1:tP41Zoavr8ptEqaW6j+LQOnyBBhO7OkOMAGrgLopT
 cloud.google.com/go/compute/metadata v0.2.3 h1:mg4jlk7mCAj6xXp9UJ4fjI9VUI5rubuGBW5aJ7UnBMY=
 cloud.google.com/go/compute/metadata v0.2.3/go.mod h1:VAV5nSsACxMJvgaAuX6Pk2AawlZn8kiOGuCv6gTkwuA=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/NikitaSkrynnik/sdk v0.5.1-0.20231013060333-6cd7934975bf h1:yOcSdgpLdDe2RsGF81FL2NOHAxrapahle/4GYEChOvY=
+github.com/NikitaSkrynnik/sdk v0.5.1-0.20231013060333-6cd7934975bf/go.mod h1:KzbOZkk84r6KMNESKb50DpIWqxqCA88Mb+2jFrAdBJs=
 github.com/OneOfOne/xxhash v1.2.8 h1:31czK/TI9sNkxIKfaUfGlU47BAxQ0ztGgd9vPyqimf8=
 github.com/OneOfOne/xxhash v1.2.8/go.mod h1:eZbhyaAYD41SGSSsnmcpxVoRiQ/MPUTjUdIIOT9Um7Q=
 github.com/agnivade/levenshtein v1.1.1 h1:QY8M92nrzkmr798gCo3kmMyqXFzdQVpxLlGPRBij0P8=
@@ -153,8 +155,6 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/networkservicemesh/api v1.11.1-0.20231031152153-730abd666985 h1:uiWxBSamqODTzO/uobmjjqWAhi93+bpIDQ+OpV3uU58=
 github.com/networkservicemesh/api v1.11.1-0.20231031152153-730abd666985/go.mod h1:E2yBac48+mMkMh6ODnsNyah4EE6rI08SMR9n+86Emxs=
-github.com/networkservicemesh/sdk v0.5.1-0.20231108095252-20150d65bae2 h1:hK+ZwSlbvsFw+dzHlxvNy4p3jfD3dCt/aZq77lcvFfw=
-github.com/networkservicemesh/sdk v0.5.1-0.20231108095252-20150d65bae2/go.mod h1:0SBXaWlnQMrsWmaw0DrZ5lBia1LXyA4oE2oagnOuhaY=
 github.com/onsi/ginkgo/v2 v2.9.4 h1:xR7vG4IXt5RWx6FfIjyAtsoMAtnc3C/rFXBBd2AjZwE=
 github.com/onsi/gomega v1.27.6 h1:ENqfyGeS5AX/rlXDd/ETokDz93u0YufY1Pgxuy/PvWE=
 github.com/open-policy-agent/opa v0.44.0 h1:sEZthsrWBqIN+ShTMJ0Hcz6a3GkYsY4FaB2S/ou2hZk=
