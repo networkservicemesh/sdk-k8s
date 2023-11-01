@@ -330,7 +330,7 @@ func TestNSMGR_FloatingInterdomainUseCase(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestScaledRegistry_NSEUnregisterUseCase(t *testing.T) {
+func TestScaledRegistry_NSEUnregisterWithOldVersionUseCase(t *testing.T) {
 	t.Cleanup(func() { goleak.VerifyNone(t, ignoreKLogDaemon) })
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -399,6 +399,120 @@ func TestScaledRegistry_NSEUnregisterUseCase(t *testing.T) {
 	require.NoError(t, err)
 	list = registry.ReadNetworkServiceEndpointList(s)
 	require.Len(t, list, 0)
+}
+
+func TestScaledRegistry_NSEUnregisterInAnotherRegistryUseCase(t *testing.T) {
+	t.Cleanup(func() { goleak.VerifyNone(t, ignoreKLogDaemon) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*50000)
+	defer cancel()
+
+	clientSet := fake.NewSimpleClientset()
+
+	cluster1 := sandbox.NewBuilder(ctx, t).
+		SetNodesCount(1).
+		SetRegistrySupplier(supplyK8sRegistryWithClientSet(clientSet)).
+		SetNSMgrProxySupplier(nil).
+		SetRegistryProxySupplier(nil).
+		Build()
+
+	cluster2 := sandbox.NewBuilder(ctx, t).
+		SetNodesCount(1).
+		SetRegistrySupplier(supplyK8sRegistryWithClientSet(clientSet)).
+		SetNSMgrProxySupplier(nil).
+		SetRegistryProxySupplier(nil).
+		Build()
+
+	// 1. Register Network Service
+	nsRegistryClient := cluster1.NewNSRegistryClient(ctx, sandbox.GenerateTestToken)
+	nsReg := &registry.NetworkService{Name: "my-service"}
+	_, err := nsRegistryClient.Register(ctx, nsReg)
+	require.NoError(t, err)
+
+	nseReg := &registry.NetworkServiceEndpoint{
+		Name:                "final-endpoint",
+		NetworkServiceNames: []string{"my-service"},
+	}
+
+	// 2. Create two registry clients for registry1 on cluster1 and registry2 on cluster2
+	registryClient1 := registryclient.NewNetworkServiceEndpointRegistryClient(ctx,
+		registryclient.WithClientURL(cluster1.Registry.URL),
+		registryclient.WithDialOptions(grpc.WithTransportCredentials(insecure.NewCredentials())))
+
+	registryClient2 := registryclient.NewNetworkServiceEndpointRegistryClient(ctx,
+		registryclient.WithClientURL(cluster2.Registry.URL),
+		registryclient.WithDialOptions(grpc.WithTransportCredentials(insecure.NewCredentials())))
+
+	// 3. NSE registers itself with version [1] through registry1
+	nseReg, err = registryClient1.Register(ctx, nseReg)
+	require.NoError(t, err)
+
+	// 4. Check that we have one NSE in etcd
+	s, err := registryClient1.Find(ctx, &registry.NetworkServiceEndpointQuery{NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{
+		Name: "final-endpoint",
+	}})
+	require.NoError(t, err)
+	list := registry.ReadNetworkServiceEndpointList(s)
+	require.Len(t, list, 1)
+
+	// 5. NSE unregisters itself through registry2
+	_, err = registryClient2.Unregister(ctx, nseReg)
+	require.NoError(t, err)
+
+	// 7. Check that we don't have NSEs in etcd after unregistration
+	s, err = registryClient1.Find(ctx, &registry.NetworkServiceEndpointQuery{NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{
+		Name: "final-endpoint",
+	}})
+	require.NoError(t, err)
+	list = registry.ReadNetworkServiceEndpointList(s)
+	require.Len(t, list, 0)
+}
+
+func TestScaledRegistry_ExpireUseCase(t *testing.T) {
+	t.Cleanup(func() { goleak.VerifyNone(t, ignoreKLogDaemon) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	clientSet := fake.NewSimpleClientset()
+
+	cluster := sandbox.NewBuilder(ctx, t).
+		SetNodesCount(1).
+		SetRegistrySupplier(supplyK8sRegistryWithClientSet(clientSet)).
+		SetNSMgrProxySupplier(nil).
+		SetRegistryProxySupplier(nil).
+		Build()
+
+	// 1. Register Network Service
+	nsRegistryClient := cluster.NewNSRegistryClient(ctx, sandbox.GenerateTestToken)
+	nsReg := &registry.NetworkService{Name: "my-service"}
+	_, err := nsRegistryClient.Register(ctx, nsReg)
+	require.NoError(t, err)
+
+	nseReg := &registry.NetworkServiceEndpoint{
+		Name:                "final-endpoint",
+		NetworkServiceNames: []string{"my-service"},
+	}
+
+	// 2. Create registry client for registry
+	dialOptions := sandbox.DialOptions(sandbox.WithTokenGenerator(sandbox.GenerateExpiringToken(time.Second * 2)))
+	registryClient := registryclient.NewNetworkServiceEndpointRegistryClient(ctx,
+		registryclient.WithClientURL(cluster.Registry.URL),
+		registryclient.WithDialOptions(dialOptions...))
+
+	// 3. NSE registers itself
+	_, err = registryClient.Register(ctx, nseReg)
+	require.NoError(t, err)
+
+	// 4. Wait until expire unregisters NSE
+	require.Eventually(t, func() bool {
+		s, err := registryClient.Find(ctx, &registry.NetworkServiceEndpointQuery{NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{
+			Name: "final-endpoint",
+		}})
+		require.NoError(t, err)
+		list := registry.ReadNetworkServiceEndpointList(s)
+		return len(list) == 0
+	}, time.Second*3, time.Millisecond*500)
 }
 
 func supplyK8sRegistry(ctx context.Context, tokenGenerator token.GeneratorFunc, expireDuration time.Duration, proxyRegistryURL *url.URL, options ...grpc.DialOption) registryserver.Registry {
