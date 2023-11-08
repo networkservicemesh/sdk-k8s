@@ -47,10 +47,6 @@ type etcdNSERegistryServer struct {
 }
 
 func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.NetworkServiceEndpoint) (*registry.NetworkServiceEndpoint, error) {
-	resp, err := next.NetworkServiceEndpointRegistryServer(ctx).Register(ctx, request)
-	if err != nil {
-		return nil, err
-	}
 	meta := metav1.ObjectMeta{}
 	if request.Name == "" {
 		meta.GenerateName = "nse-"
@@ -61,16 +57,16 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 		ctx,
 		&v1.NetworkServiceEndpoint{
 			ObjectMeta: meta,
-			Spec:       *(*v1.NetworkServiceEndpointSpec)(resp),
+			Spec:       *(*v1.NetworkServiceEndpointSpec)(request),
 		},
 		metav1.CreateOptions{},
 	)
-	err = errors.Wrapf(err, "failed to create a pod %s in a namespace %s", resp.Name, n.ns)
+	err = errors.Wrapf(err, "failed to create a pod %s in a namespace %s", request.Name, n.ns)
 	if apierrors.IsAlreadyExists(err) {
 		var nse *v1.NetworkServiceEndpoint
-		list, erro := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(ctx, metav1.ListOptions{})
-		if erro != nil {
-			return nil, errors.Wrap(erro, "failed to get a list of NetworkServiceEndpoints")
+		list, listErr := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(ctx, metav1.ListOptions{})
+		if listErr != nil {
+			return nil, errors.Wrap(listErr, "failed to get a list of NetworkServiceEndpoints")
 		}
 		for i := 0; i < len(list.Items); i++ {
 			item := (*registry.NetworkServiceEndpoint)(&list.Items[i].Spec)
@@ -85,7 +81,13 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 
 		if nse != nil {
 			apiResp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(ctx, nse, metav1.UpdateOptions{})
-			err = errors.Wrapf(err, "failed to update a pod %s in a namespace %s", nse.Name, n.ns)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to update a pod %s in a namespace %s", nse.Name, n.ns)
+			}
+
+			n.versions.Store(apiResp.Spec.Name, apiResp.ResourceVersion)
+			ctx = withNSEVersion(ctx, apiResp.ResourceVersion)
+			return next.NetworkServiceEndpointRegistryServer(ctx).Register(ctx, request)
 		}
 	}
 	if err != nil {
@@ -93,8 +95,8 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 	}
 
 	n.versions.Store(apiResp.Spec.Name, apiResp.ResourceVersion)
-
-	return (*registry.NetworkServiceEndpoint)(&apiResp.Spec), nil
+	ctx = withNSEVersion(ctx, apiResp.ResourceVersion)
+	return next.NetworkServiceEndpointRegistryServer(ctx).Register(ctx, request)
 }
 
 func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
@@ -134,6 +136,17 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 	resp, err := next.NetworkServiceEndpointRegistryServer(ctx).Unregister(ctx, request)
 	if err != nil {
 		return nil, errors.WithStack(err)
+	}
+
+	if _, ok := nseVersionFromContext(ctx); !ok {
+		err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(
+			ctx,
+			request.Name,
+			metav1.DeleteOptions{})
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to delete a NetworkServiceEndpoints %s in a namespace %s", request.Name, n.ns)
+		}
+		return resp, nil
 	}
 
 	if v, ok := n.versions.Load(request.Name); ok {
