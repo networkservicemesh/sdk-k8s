@@ -49,6 +49,7 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
 	"github.com/networkservicemesh/sdk/pkg/tools/sandbox"
 	"github.com/networkservicemesh/sdk/pkg/tools/token"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	core "k8s.io/client-go/testing"
 )
 
@@ -58,10 +59,22 @@ var ignoreKLogDaemon = goleak.IgnoreTopFunction("k8s.io/klog/v2.(*loggingT).flus
 func Test_ReselectEndpointWhenNetSvcHasChanged(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
+	var fakeClient = fake.NewSimpleClientset()
+
+	fakeClient.PrependReactor("*", "networkservices", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+		switch action := action.(type) {
+		case core.UpdateAction:
+			action.GetObject().(*v1.NetworkService).ResourceVersion = uuid.NewString()
+		case core.CreateAction:
+			action.GetObject().(*v1.NetworkService).ResourceVersion = uuid.NewString()
+		}
+
+		return false, nil, nil
+	})
 
 	domain := sandbox.NewBuilder(ctx, t).
 		SetNodesCount(1).
-		SetRegistrySupplier(supplyK8sRegistry).
+		SetRegistrySupplier(supplyK8sRegistryWithClientSet(fakeClient)).
 		SetRegistryProxySupplier(nil).
 		Build()
 
@@ -152,7 +165,14 @@ func Test_ReselectEndpointWhenNetSvcHasChanged(t *testing.T) {
 			},
 		},
 	})
-	nsReg, err = nsRegistryClient.Register(ctx, nsReg)
+
+	_, err = fakeClient.NetworkservicemeshV1().NetworkServices("default").Update(ctx, &v1.NetworkService{
+		Spec: v1.NetworkServiceSpec(*nsReg.Clone()),
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:            nsReg.GetName(),
+			ResourceVersion: uuid.NewString(),
+		},
+	}, metaV1.UpdateOptions{})
 	require.NoError(t, err)
 	// deploye nse-2 that matches with updated svc
 	deployNSE("nse-2", nsReg.Name, map[string]string{
@@ -659,24 +679,11 @@ func TestScaledRegistry_ExpireUseCase(t *testing.T) {
 }
 
 func supplyK8sRegistry(ctx context.Context, tokenGenerator token.GeneratorFunc, expireDuration time.Duration, proxyRegistryURL *url.URL, options ...grpc.DialOption) registryserver.Registry {
-	var fakeClient = fake.NewSimpleClientset()
-
-	fakeClient.PrependReactor("*", "networkservices", func(action core.Action) (handled bool, ret runtime.Object, err error) {
-
-		switch action := action.(type) {
-		case core.UpdateAction:
-			action.GetObject().(*v1.NetworkService).ResourceVersion = uuid.NewString()
-		case core.CreateAction:
-			action.GetObject().(*v1.NetworkService).ResourceVersion = uuid.NewString()
-		}
-
-		return false, nil, nil
-	})
 
 	return registryk8s.NewServer(&registryk8s.Config{
 		ChainCtx:         ctx,
 		Namespace:        "default",
-		ClientSet:        fakeClient,
+		ClientSet:        fake.NewSimpleClientset(),
 		ExpirePeriod:     expireDuration,
 		ProxyRegistryURL: proxyRegistryURL,
 	}, tokenGenerator, registryk8s.WithDialOptions(options...))
