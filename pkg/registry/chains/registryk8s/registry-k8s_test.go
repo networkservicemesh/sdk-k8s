@@ -37,9 +37,6 @@ import (
 	"github.com/networkservicemesh/api/pkg/api/networkservice/mechanisms/cls"
 	kernelmech "github.com/networkservicemesh/api/pkg/api/networkservice/mechanisms/kernel"
 	"github.com/networkservicemesh/api/pkg/api/registry"
-	"github.com/networkservicemesh/sdk-k8s/pkg/registry/chains/registryk8s"
-	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
-	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/fake"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/chains/client"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/chains/endpoint"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/ipam/point2pointipam"
@@ -51,11 +48,16 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/tools/token"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	core "k8s.io/client-go/testing"
+
+	"github.com/networkservicemesh/sdk-k8s/pkg/registry/chains/registryk8s"
+	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
+	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/fake"
 )
 
 // This is started as a daemon in k8s.io/klog/v2 init()
 var ignoreKLogDaemon = goleak.IgnoreTopFunction("k8s.io/klog/v2.(*loggingT).flushDaemon")
 
+// nolint:funlen,gocritic,staticcheck
 func Test_ReselectEndpointWhenNetSvcHasChanged(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
@@ -68,7 +70,6 @@ func Test_ReselectEndpointWhenNetSvcHasChanged(t *testing.T) {
 		case core.CreateAction:
 			action.GetObject().(*v1.NetworkService).ResourceVersion = uuid.NewString()
 		}
-
 		return false, nil, nil
 	})
 
@@ -207,7 +208,6 @@ func Test_ReselectEndpointWhenNetSvcHasChanged(t *testing.T) {
 			return
 		}
 	}
-
 }
 
 func TestNSMGR_LocalUsecase(t *testing.T) {
@@ -679,7 +679,6 @@ func TestScaledRegistry_ExpireUseCase(t *testing.T) {
 }
 
 func supplyK8sRegistry(ctx context.Context, tokenGenerator token.GeneratorFunc, expireDuration time.Duration, proxyRegistryURL *url.URL, options ...grpc.DialOption) registryserver.Registry {
-
 	return registryk8s.NewServer(&registryk8s.Config{
 		ChainCtx:         ctx,
 		Namespace:        "default",
