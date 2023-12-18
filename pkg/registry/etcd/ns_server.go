@@ -145,6 +145,9 @@ func (n *etcdNSRegistryServer) handleWatcher(
 				continue
 			}
 			item := (*registry.NetworkService)(&model.Spec)
+			if item.Name == "" {
+				item.Name = model.GetName()
+			}
 			if v, ok := n.versions.Load(item.Name); ok && v == model.ResourceVersion {
 				continue
 			}
