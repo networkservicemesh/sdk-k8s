@@ -218,7 +218,7 @@ func (n *etcdNSERegistryServer) handleWatcher(
 				continue
 			}
 			item := (*registry.NetworkServiceEndpoint)(&model.Spec)
-			if v, ok := n.versions.Load(item.Name); !ok || v == model.ResourceVersion {
+			if v, ok := n.versions.Load(item.Name); ok && v == model.ResourceVersion {
 				continue
 			}
 
