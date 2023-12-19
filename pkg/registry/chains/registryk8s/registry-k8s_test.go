@@ -21,31 +21,194 @@ package registryk8s_test
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/networkservicemesh/api/pkg/api/networkservice"
 	"github.com/networkservicemesh/api/pkg/api/networkservice/mechanisms/cls"
 	kernelmech "github.com/networkservicemesh/api/pkg/api/networkservice/mechanisms/kernel"
 	"github.com/networkservicemesh/api/pkg/api/registry"
+	"github.com/networkservicemesh/sdk/pkg/networkservice/chains/client"
+	"github.com/networkservicemesh/sdk/pkg/networkservice/chains/endpoint"
+	"github.com/networkservicemesh/sdk/pkg/networkservice/ipam/point2pointipam"
+	"github.com/networkservicemesh/sdk/pkg/networkservice/utils/checks/checkresponse"
 	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
 	registryclient "github.com/networkservicemesh/sdk/pkg/registry/chains/client"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
 	"github.com/networkservicemesh/sdk/pkg/tools/sandbox"
 	"github.com/networkservicemesh/sdk/pkg/tools/token"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	core "k8s.io/client-go/testing"
 
 	"github.com/networkservicemesh/sdk-k8s/pkg/registry/chains/registryk8s"
+	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned/fake"
 )
 
 // This is started as a daemon in k8s.io/klog/v2 init()
 var ignoreKLogDaemon = goleak.IgnoreTopFunction("k8s.io/klog/v2.(*loggingT).flushDaemon")
+
+// nolint:funlen,gocritic,staticcheck
+func Test_ReselectEndpointWhenNetSvcHasChanged(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	var fakeClient = fake.NewSimpleClientset()
+
+	fakeClient.PrependReactor("*", "networkservices", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+		switch action := action.(type) {
+		case core.UpdateAction:
+			action.GetObject().(*v1.NetworkService).ResourceVersion = uuid.NewString()
+		case core.CreateAction:
+			action.GetObject().(*v1.NetworkService).ResourceVersion = uuid.NewString()
+		}
+		return false, nil, nil
+	})
+
+	domain := sandbox.NewBuilder(ctx, t).
+		SetNodesCount(1).
+		SetRegistrySupplier(supplyK8sRegistryWithClientSet(fakeClient)).
+		SetRegistryProxySupplier(nil).
+		Build()
+
+	nsRegistryClient := domain.NewNSRegistryClient(ctx, sandbox.GenerateTestToken)
+	nsReg, err := nsRegistryClient.Register(ctx, &registry.NetworkService{Name: "my-service"})
+	require.NoError(t, err)
+
+	var deployNSE = func(name, ns string, labels map[string]string, ipNet *net.IPNet) {
+		nseReg := &registry.NetworkServiceEndpoint{
+			Name:                name,
+			NetworkServiceNames: []string{ns},
+		}
+		nseReg.NetworkServiceLabels = map[string]*registry.NetworkServiceLabels{
+			ns: {
+				Labels: labels,
+			},
+		}
+
+		netListener, listenErr := net.Listen("tcp", "127.0.0.1:")
+		require.NoError(t, listenErr)
+
+		nseReg.Url = "tcp://" + netListener.Addr().String()
+
+		nseRegistryClient := registryclient.NewNetworkServiceEndpointRegistryClient(ctx,
+			registryclient.WithClientURL(sandbox.CloneURL(domain.Nodes[0].NSMgr.URL)),
+			registryclient.WithDialOptions(sandbox.DialOptions()...),
+		)
+
+		nseReg, err = nseRegistryClient.Register(ctx, nseReg)
+		require.NoError(t, err)
+
+		go func() {
+			<-ctx.Done()
+			_ = netListener.Close()
+		}()
+		go func() {
+			defer func() {
+				_, _ = nseRegistryClient.Unregister(ctx, nseReg)
+			}()
+
+			serv := grpc.NewServer()
+			endpoint.NewServer(ctx, sandbox.GenerateTestToken, endpoint.WithAdditionalFunctionality(
+				point2pointipam.NewServer(ipNet),
+			)).Register(serv)
+			_ = serv.Serve(netListener)
+		}()
+	}
+
+	_, ipNet1, _ := net.ParseCIDR("100.100.100.100/30")
+	_, ipNet2, _ := net.ParseCIDR("200.200.200.200/30")
+	deployNSE("nse-1", nsReg.Name, map[string]string{}, ipNet1)
+	// 3. Create client and request endpoint
+
+	var connCh = make(chan *networkservice.Connection, 10)
+	nsc := domain.Nodes[0].NewClient(ctx, sandbox.GenerateTestToken, client.WithAdditionalFunctionality(
+		checkresponse.NewClient(t, func(t *testing.T, c *networkservice.Connection) {
+			connCh <- c
+		}),
+	))
+
+	var req = &networkservice.NetworkServiceRequest{
+		MechanismPreferences: []*networkservice.Mechanism{
+			{Cls: cls.LOCAL, Type: kernelmech.MECHANISM},
+		},
+		Connection: &networkservice.Connection{
+			Id:             "1",
+			NetworkService: nsReg.GetName(),
+			Context:        &networkservice.ConnectionContext{},
+		},
+	}
+
+	conn, err := nsc.Request(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+	require.Equal(t, 4, len(conn.Path.PathSegments))
+	require.Equal(t, "nse-1", conn.GetNetworkServiceEndpointName())
+	require.NoError(t, ctx.Err())
+	require.Equal(t, "100.100.100.101/32", conn.Context.GetIpContext().GetSrcIpAddrs()[0])
+	require.Equal(t, "100.100.100.100/32", conn.Context.GetIpContext().GetDstIpAddrs()[0])
+
+	// update netsvc
+	nsReg.Matches = append(nsReg.Matches, &registry.Match{
+		Routes: []*registry.Destination{
+			{
+				DestinationSelector: map[string]string{
+					"experimental": "true",
+				},
+			},
+		},
+	})
+
+	_, err = fakeClient.NetworkservicemeshV1().NetworkServices("default").Update(ctx, &v1.NetworkService{
+		Spec: v1.NetworkServiceSpec(*nsReg.Clone()),
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:            nsReg.GetName(),
+			ResourceVersion: uuid.NewString(),
+		},
+	}, metaV1.UpdateOptions{})
+	require.NoError(t, err)
+	// deploye nse-2 that matches with updated svc
+	deployNSE("nse-2", nsReg.Name, map[string]string{
+		"experimental": "true",
+	}, ipNet2)
+	// simulate idle
+	time.Sleep(time.Second / 2)
+
+	for {
+		select {
+		case <-ctx.Done():
+			require.NoError(t, ctx.Err())
+		case conn := <-connCh:
+
+			fmt.Println(conn)
+
+			if conn.GetContext().GetIpContext().GetSrcIpAddrs()[0] != "200.200.200.201/32" {
+				continue
+			}
+
+			require.Equal(t, 4, len(conn.Path.PathSegments))
+			require.Equal(t, "nse-2", conn.GetNetworkServiceEndpointName())
+			require.NotEmpty(t, conn.Context.GetIpContext().GetSrcIpAddrs())
+			require.NotEmpty(t, conn.Context.GetIpContext().GetDstIpAddrs())
+			require.NoError(t, ctx.Err())
+			require.Equal(t, "200.200.200.201/32", conn.GetContext().GetIpContext().GetSrcIpAddrs()[0])
+			require.Equal(t, "200.200.200.200/32", conn.GetContext().GetIpContext().GetDstIpAddrs()[0])
+
+			// Close
+			_, err = nsc.Close(ctx, conn)
+			require.NoError(t, err)
+			return
+		}
+	}
+}
 
 func TestNSMGR_LocalUsecase(t *testing.T) {
 	t.Cleanup(func() { goleak.VerifyNone(t, ignoreKLogDaemon) })
