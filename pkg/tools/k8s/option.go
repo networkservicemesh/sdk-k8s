@@ -24,14 +24,16 @@ type options struct {
 // Option is an option pattern for NSM kubeutils
 type Option func(o *options)
 
-// WithQPS - sets k8s QPS
+// WithQPS - QPS indicates the maximum QPS to the master from this client.
+// See: https://github.com/kubernetes/client-go/blob/v0.28.3/rest/config.go#L116
 func WithQPS(q float32) Option {
 	return func(o *options) {
 		o.qps = q
 	}
 }
 
-// WithBurst - sets k8s burst
+// WithBurst - sets maximum burst for throttle
+// See: https://github.com/kubernetes/client-go/blob/v0.28.3/rest/config.go#L120
 func WithBurst(b int) Option {
 	return func(o *options) {
 		o.burst = b
