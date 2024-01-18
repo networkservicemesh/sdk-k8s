@@ -1,6 +1,6 @@
 // Copyright (c) 2020 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2023 Cisco and/or its affiliates.
+// Copyright (c) 2023-2024 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -34,7 +34,12 @@ import (
 
 // NewClientSetConfig creates ClientSetConfig from config file.
 // If config file path not provided via env variable KUBECONFIG, default path "HOME/.kube/config" will be used
-func NewClientSetConfig() (*rest.Config, error) {
+func NewClientSetConfig(opts ...Option) (*rest.Config, error) {
+	o := &options{}
+	for _, opt := range opts {
+		opt(o)
+	}
+
 	configPath := os.Getenv("KUBECONFIG")
 	if configPath == "" {
 		configPath = filepath.Join(os.Getenv("HOME"), ".kube", "config")
@@ -48,13 +53,15 @@ func NewClientSetConfig() (*rest.Config, error) {
 			return nil, errors.Wrapf(err, "failed to build a config from a %s", configPath)
 		}
 	}
+	config.QPS = o.qps
+	config.Burst = o.burst
 
 	return config, nil
 }
 
 // NewVersionedClient creates a new networkservicemesh.io ClietSet for the default kubernetes config.
-func NewVersionedClient() (versioned.Interface, *rest.Config, error) {
-	config, err := NewClientSetConfig()
+func NewVersionedClient(opts ...Option) (versioned.Interface, *rest.Config, error) {
+	config, err := NewClientSetConfig(opts...)
 	if err != nil {
 		return nil, nil, err
 	}
