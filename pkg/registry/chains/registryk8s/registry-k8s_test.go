@@ -40,6 +40,7 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/networkservice/chains/client"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/chains/endpoint"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/ipam/point2pointipam"
+	"github.com/networkservicemesh/sdk/pkg/networkservice/ipam/strictipam"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/utils/checks/checkresponse"
 	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
 	registryclient "github.com/networkservicemesh/sdk/pkg/registry/chains/client"
@@ -118,7 +119,7 @@ func Test_ReselectEndpointWhenNetSvcHasChanged(t *testing.T) {
 
 			serv := grpc.NewServer()
 			endpoint.NewServer(ctx, sandbox.GenerateTestToken, endpoint.WithAdditionalFunctionality(
-				point2pointipam.NewServer(ipNet),
+				strictipam.NewServer(point2pointipam.NewServer, ipNet),
 			)).Register(serv)
 			_ = serv.Serve(netListener)
 		}()
