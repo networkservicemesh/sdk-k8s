@@ -6,8 +6,8 @@ require (
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.3.1
-	github.com/networkservicemesh/api v1.13.1-0.20240424210452-d0df98851760
-	github.com/networkservicemesh/sdk v0.5.1-0.20240530111558-50c0908267de
+	github.com/networkservicemesh/api v1.13.1-rc.4
+	github.com/networkservicemesh/sdk v1.13.1-rc.4
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.4
@@ -32,7 +32,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/edwarnicke/exechelper v1.0.2 // indirect
 	github.com/edwarnicke/genericsync v0.0.0-20220910010113-61a344f9bc29 // indirect
-	github.com/edwarnicke/grpcfd v1.1.2 // indirect
+	github.com/edwarnicke/grpcfd v1.1.4 // indirect
 	github.com/edwarnicke/serialize v1.0.7 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
