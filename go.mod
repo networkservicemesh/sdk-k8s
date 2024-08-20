@@ -1,8 +1,9 @@
 module github.com/networkservicemesh/sdk-k8s
 
-go 1.20
+go 1.21
 
 require (
+	github.com/edwarnicke/serialize v1.0.7
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.3.1
@@ -33,7 +34,6 @@ require (
 	github.com/edwarnicke/exechelper v1.0.2 // indirect
 	github.com/edwarnicke/genericsync v0.0.0-20220910010113-61a344f9bc29 // indirect
 	github.com/edwarnicke/grpcfd v1.1.4 // indirect
-	github.com/edwarnicke/serialize v1.0.7 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect

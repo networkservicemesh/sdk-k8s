@@ -1,6 +1,6 @@
 // Copyright (c) 2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2023 Cisco and/or its affiliates.
+// Copyright (c) 2023-2024 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -20,9 +20,12 @@ package etcd_test
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/networkservicemesh/api/pkg/api/registry"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -123,9 +126,13 @@ func Test_K8sNSRegistry_FindWatch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ns-1", nsResp.NetworkService.Name)
 
-	// NS reregisteration. We shouldn't get any updates
+	// NS reregisteration.
 	_, err = s.Register(ctx, ns.Clone())
 	require.NoError(t, err)
+
+	nsResp, err = stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, "ns-1", nsResp.NetworkService.Name)
 
 	// Update NS again - add payload
 	updatedNS := ns.Clone()
@@ -143,4 +150,51 @@ func Test_K8sNSRegistry_FindWatch(t *testing.T) {
 	nsResp, err = stream.Recv()
 	require.NoError(t, err)
 	require.Equal(t, "IPPayload", nsResp.NetworkService.Payload)
+}
+
+func Test_NSHightloadWatch_ShouldNotFail(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	const clinetCount = 20
+	const updateCount int32 = 200
+
+	var actual atomic.Int32
+	var myClientset = fake.NewSimpleClientset()
+
+	var s = etcd.NewNetworkServiceRegistryServer(ctx, "ns-1", myClientset)
+	var wg sync.WaitGroup
+	wg.Add(clinetCount)
+
+	for i := 0; i < clinetCount; i++ {
+		go func() {
+			defer wg.Done()
+			clientCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			c := adapters.NetworkServiceServerToClient(s)
+			stream, err := c.Find(clientCtx, &registry.NetworkServiceQuery{
+				NetworkService: &registry.NetworkService{},
+				Watch:          true,
+			})
+			require.NoError(t, err)
+
+			for range registry.ReadNetworkServiceChannel(stream) {
+				actual.Add(1)
+			}
+		}()
+	}
+
+	go func() {
+		for i := int32(0); i < updateCount; i++ {
+			_, _ = myClientset.NetworkservicemeshV1().NetworkServices("ns-1").Create(ctx, &v1.NetworkService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: uuid.NewString(),
+				},
+			}, metav1.CreateOptions{})
+			time.Sleep(time.Millisecond * 10)
+		}
+	}()
+	wg.Wait()
+
+	require.InDelta(t, updateCount, actual.Load()/clinetCount, 5)
 }

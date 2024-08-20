@@ -1,6 +1,6 @@
 // Copyright (c) 2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022-2023 Cisco and/or its affiliates.
+// Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,9 +21,12 @@ package etcd_test
 import (
 	"context"
 	"io"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/networkservicemesh/api/pkg/api/registry"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -146,6 +149,56 @@ func Test_K8sNSERegistry_FindWatch(t *testing.T) {
 	require.Equal(t, 1, len(nseResp.GetNetworkServiceEndpoint().NetworkServiceLabels))
 }
 
+func Test_NSEHightloadWatch_ShouldNotFail(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	const clinetCount = 20
+	const updateCount int32 = 200
+
+	var actual atomic.Int32
+	var myClientset = fake.NewSimpleClientset()
+
+	var s = etcd.NewNetworkServiceEndpointRegistryServer(ctx, "ns-1", myClientset)
+	var wg sync.WaitGroup
+	wg.Add(clinetCount)
+
+	for i := 0; i < clinetCount; i++ {
+		go func() {
+			defer wg.Done()
+			clientCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			c := adapters.NetworkServiceEndpointServerToClient(s)
+			stream, err := c.Find(clientCtx, &registry.NetworkServiceEndpointQuery{
+				NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{},
+				Watch:                  true,
+			})
+			require.NoError(t, err)
+
+			for range registry.ReadNetworkServiceEndpointChannel(stream) {
+				actual.Add(1)
+			}
+		}()
+	}
+
+	go func() {
+		for i := int32(0); i < updateCount; i++ {
+			_, _ = myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").Create(ctx, &v1.NetworkServiceEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: uuid.NewString(),
+				},
+				Spec: v1.NetworkServiceEndpointSpec{
+					ExpirationTime: timestamppb.New(time.Now().Add(-time.Hour)),
+				},
+			}, metav1.CreateOptions{})
+			time.Sleep(time.Millisecond * 10)
+		}
+	}()
+	wg.Wait()
+
+	require.InDelta(t, updateCount, actual.Load()/clinetCount, 5)
+}
+
 func Test_K8sNSERegistry_Find_ExpiredNSE(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -171,7 +224,8 @@ func Test_K8sNSERegistry_Find_ExpiredNSE(t *testing.T) {
 
 	_, err = stream.Recv()
 	require.True(t, errors.Is(err, io.EOF))
-	resp, err := myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").List(ctx, metav1.ListOptions{})
-	require.NoError(t, err)
-	require.Len(t, resp.Items, 0)
+	require.Eventually(t, func() bool {
+		resp, err := myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").List(ctx, metav1.ListOptions{})
+		return err == nil && len(resp.Items) == 0
+	}, time.Second/2, time.Millisecond*100)
 }
