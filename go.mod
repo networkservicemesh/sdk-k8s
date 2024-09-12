@@ -1,6 +1,6 @@
 module github.com/networkservicemesh/sdk-k8s
 
-go 1.21
+go 1.20
 
 require (
 	github.com/edwarnicke/serialize v1.0.7
