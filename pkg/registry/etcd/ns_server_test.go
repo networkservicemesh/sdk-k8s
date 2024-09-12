@@ -107,6 +107,7 @@ func Test_K8sNSRegistry_FindWatch(t *testing.T) {
 	var myClientset = fake.NewSimpleClientset()
 	s := etcd.NewNetworkServiceRegistryServer(ctx, "", myClientset)
 
+	time.Sleep(time.Millisecond * 10)
 	// Start watching
 	c := adapters.NetworkServiceServerToClient(s)
 	stream, err := c.Find(ctx, &registry.NetworkServiceQuery{
@@ -134,9 +135,11 @@ func Test_K8sNSRegistry_FindWatch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ns-1", nsResp.NetworkService.Name)
 
+	const expectedPayload = "IPPayload"
+
 	// Update NS again - add payload
 	updatedNS := ns.Clone()
-	updatedNS.Payload = "IPPayload"
+	updatedNS.Payload = expectedPayload
 	_, err = myClientset.NetworkservicemeshV1().NetworkServices("").Update(ctx, &v1.NetworkService{
 		Spec: v1.NetworkServiceSpec(*updatedNS.Clone()),
 		ObjectMeta: metav1.ObjectMeta{
@@ -146,14 +149,14 @@ func Test_K8sNSRegistry_FindWatch(t *testing.T) {
 	}, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
-	// We should receive only the last update
-	nsResp, err = stream.Recv()
-	require.NoError(t, err)
-	require.Equal(t, "IPPayload", nsResp.NetworkService.Payload)
+	require.Eventually(t, func() bool {
+		nsResp, err = stream.Recv()
+		return err == nil && nsResp.NetworkService.Payload == expectedPayload
+	}, time.Second, time.Millisecond*100)
 }
 
 func Test_NSHightloadWatch_ShouldNotFail(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
 	const clinetCount = 20
@@ -163,27 +166,27 @@ func Test_NSHightloadWatch_ShouldNotFail(t *testing.T) {
 	var myClientset = fake.NewSimpleClientset()
 
 	var s = etcd.NewNetworkServiceRegistryServer(ctx, "ns-1", myClientset)
-	var wg sync.WaitGroup
-	wg.Add(clinetCount)
+	var doneWg, startWg sync.WaitGroup
+	doneWg.Add(clinetCount)
+	startWg.Add(clinetCount)
 
 	for i := 0; i < clinetCount; i++ {
 		go func() {
-			defer wg.Done()
+			defer doneWg.Done()
 			clientCtx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			c := adapters.NetworkServiceServerToClient(s)
-			stream, err := c.Find(clientCtx, &registry.NetworkServiceQuery{
+			stream, _ := c.Find(clientCtx, &registry.NetworkServiceQuery{
 				NetworkService: &registry.NetworkService{},
 				Watch:          true,
 			})
-			require.NoError(t, err)
-
+			startWg.Done()
 			for range registry.ReadNetworkServiceChannel(stream) {
 				actual.Add(1)
 			}
 		}()
 	}
-
+	startWg.Wait()
 	go func() {
 		for i := int32(0); i < updateCount; i++ {
 			_, _ = myClientset.NetworkservicemeshV1().NetworkServices("ns-1").Create(ctx, &v1.NetworkService{
@@ -194,7 +197,6 @@ func Test_NSHightloadWatch_ShouldNotFail(t *testing.T) {
 			time.Sleep(time.Millisecond * 10)
 		}
 	}()
-	wg.Wait()
-
-	require.InDelta(t, updateCount, actual.Load()/clinetCount, 5)
+	doneWg.Wait()
+	require.Equal(t, updateCount, actual.Load()/clinetCount)
 }

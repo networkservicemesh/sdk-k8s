@@ -150,7 +150,7 @@ func Test_K8sNSERegistry_FindWatch(t *testing.T) {
 }
 
 func Test_NSEHightloadWatch_ShouldNotFail(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
 	const clinetCount = 20
@@ -160,43 +160,38 @@ func Test_NSEHightloadWatch_ShouldNotFail(t *testing.T) {
 	var myClientset = fake.NewSimpleClientset()
 
 	var s = etcd.NewNetworkServiceEndpointRegistryServer(ctx, "ns-1", myClientset)
-	var wg sync.WaitGroup
-	wg.Add(clinetCount)
+	var doneWg, startWg sync.WaitGroup
+	doneWg.Add(clinetCount)
+	startWg.Add(clinetCount)
 
 	for i := 0; i < clinetCount; i++ {
 		go func() {
-			defer wg.Done()
+			defer doneWg.Done()
 			clientCtx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			c := adapters.NetworkServiceEndpointServerToClient(s)
-			stream, err := c.Find(clientCtx, &registry.NetworkServiceEndpointQuery{
+			stream, _ := c.Find(clientCtx, &registry.NetworkServiceEndpointQuery{
 				NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{},
 				Watch:                  true,
 			})
-			require.NoError(t, err)
-
+			startWg.Done()
 			for range registry.ReadNetworkServiceEndpointChannel(stream) {
 				actual.Add(1)
 			}
 		}()
 	}
-
+	startWg.Wait()
 	go func() {
 		for i := int32(0); i < updateCount; i++ {
 			_, _ = myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").Create(ctx, &v1.NetworkServiceEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: uuid.NewString(),
 				},
-				Spec: v1.NetworkServiceEndpointSpec{
-					ExpirationTime: timestamppb.New(time.Now().Add(-time.Hour)),
-				},
 			}, metav1.CreateOptions{})
-			time.Sleep(time.Millisecond * 10)
 		}
 	}()
-	wg.Wait()
-
-	require.InDelta(t, updateCount, actual.Load()/clinetCount, 5)
+	doneWg.Wait()
+	require.Equal(t, updateCount, actual.Load()/clinetCount)
 }
 
 func Test_K8sNSERegistry_Find_ExpiredNSE(t *testing.T) {

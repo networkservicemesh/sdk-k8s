@@ -117,26 +117,38 @@ func (n *etcdNSERegistryServer) watchRemoteStorage() {
 					NetworkServiceEndpoint: item,
 					Deleted:                deleted,
 				}
-				n.subscribersMutex.Lock()
-				for curr := n.subscribers.Front(); curr != nil; curr = curr.Next() {
-					select {
-					case curr.Value.(chan *registry.NetworkServiceEndpointResponse) <- resp:
-					default:
-					}
+				n.sendEvent(resp)
+				if !deleted && item.ExpirationTime != nil && item.ExpirationTime.AsTime().Local().Before(time.Now()) {
+					n.deleteExecutor.AsyncExec(func() {
+						_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, item.GetName(), metav1.DeleteOptions{
+							Preconditions: &metav1.Preconditions{
+								ResourceVersion: &model.ResourceVersion,
+							},
+						})
+					})
 				}
-				n.subscribersMutex.Unlock()
 			}
 		}
 		watcher.Stop()
 	}
 }
 
+func (n *etcdNSERegistryServer) sendEvent(resp *registry.NetworkServiceEndpointResponse) {
+	n.subscribersMutex.Lock()
+	for curr := n.subscribers.Front(); curr != nil; curr = curr.Next() {
+		select {
+		case curr.Value.(chan *registry.NetworkServiceEndpointResponse) <- resp:
+		default:
+		}
+	}
+	n.subscribersMutex.Unlock()
+}
+
 func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.NetworkServiceEndpoint) (*registry.NetworkServiceEndpoint, error) {
-	meta := metav1.ObjectMeta{}
-	if request.Name == "" {
-		meta.GenerateName = "nse-"
-	} else {
-		meta.Name = request.Name
+	meta := metav1.ObjectMeta{
+		GenerateName: "nse-",
+		Name:         request.GetName(),
+		Namespace:    n.ns,
 	}
 	apiResp, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Create(
 		ctx,
@@ -146,24 +158,14 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 		},
 		metav1.CreateOptions{},
 	)
-	err = errors.Wrapf(err, "failed to create a pod %s in a namespace %s", request.Name, n.ns)
-	if apierrors.IsAlreadyExists(err) {
-		var nse *v1.NetworkServiceEndpoint
-		list, listErr := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(ctx, metav1.ListOptions{})
-		if listErr != nil {
-			return nil, errors.Wrap(listErr, "failed to get a list of NetworkServiceEndpoints")
-		}
-		for i := 0; i < len(list.Items); i++ {
-			item := (*registry.NetworkServiceEndpoint)(&list.Items[i].Spec)
-			if item.Name == "" {
-				item.Name = list.Items[i].Name
-			}
-			if request.Name == item.Name {
-				list.Items[i].Spec = *(*v1.NetworkServiceEndpointSpec)(request)
-				nse = &list.Items[i]
-			}
-		}
 
+	err = errors.Wrapf(err, "failed to create a nse %s in a namespace %s", request.Name, n.ns)
+
+	if apierrors.IsAlreadyExists(err) {
+		nse, nseErr := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Get(ctx, request.GetName(), metav1.GetOptions{})
+		if nseErr != nil {
+			err = errors.Wrapf(err, "failed to get a nse %s in a namespace %s, reason: %v", request.Name, n.ns, nseErr.Error())
+		}
 		if nse != nil {
 			apiResp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(ctx, nse, metav1.UpdateOptions{})
 			if err != nil {
@@ -185,32 +187,28 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 }
 
 func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
-	list, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(s.Context(), metav1.ListOptions{})
+	items, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(s.Context(), metav1.ListOptions{})
 	if err != nil {
 		return errors.Wrap(err, "failed to get a list of NetworkServiceEndpoints")
 	}
-	for i := 0; i < len(list.Items); i++ {
-		crd := &list.Items[i]
+	for i := 0; i < len(items.Items); i++ {
+		crd := &items.Items[i]
 		nse := (*registry.NetworkServiceEndpoint)(&crd.Spec)
-		deleted := false
 		if nse.Name == "" {
-			nse.Name = list.Items[i].Name
+			nse.Name = items.Items[i].Name
 		}
 		if nse.ExpirationTime != nil && nse.ExpirationTime.AsTime().Local().Before(time.Now()) {
 			n.deleteExecutor.AsyncExec(func() {
-				_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, nse.Name, metav1.DeleteOptions{
+				_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, nse.GetName(), metav1.DeleteOptions{
 					Preconditions: &metav1.Preconditions{
 						ResourceVersion: &crd.ResourceVersion,
 					},
 				})
 			})
-			if !query.Watch {
-				continue
-			}
-			deleted = true
+			continue
 		}
 		if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, nse) {
-			err := s.Send(&registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: nse, Deleted: deleted})
+			err := s.Send(&registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: nse})
 			if err != nil {
 				return errors.Wrapf(err, "NetworkServiceEndpointRegistry find server failed to send a response %s", nse.String())
 			}
