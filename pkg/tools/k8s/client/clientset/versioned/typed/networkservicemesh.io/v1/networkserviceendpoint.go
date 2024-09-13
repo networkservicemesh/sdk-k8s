@@ -45,7 +45,6 @@ type NetworkServiceEndpointsGetter interface {
 type NetworkServiceEndpointInterface interface {
 	Create(ctx context.Context, networkServiceEndpoint *v1.NetworkServiceEndpoint, opts metav1.CreateOptions) (*v1.NetworkServiceEndpoint, error)
 	Update(ctx context.Context, networkServiceEndpoint *v1.NetworkServiceEndpoint, opts metav1.UpdateOptions) (*v1.NetworkServiceEndpoint, error)
-	UpdateStatus(ctx context.Context, networkServiceEndpoint *v1.NetworkServiceEndpoint, opts metav1.UpdateOptions) (*v1.NetworkServiceEndpoint, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
 	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.NetworkServiceEndpoint, error)
@@ -134,22 +133,6 @@ func (c *networkServiceEndpoints) Update(ctx context.Context, networkServiceEndp
 		Namespace(c.ns).
 		Resource("networkserviceendpoints").
 		Name(networkServiceEndpoint.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(networkServiceEndpoint).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *networkServiceEndpoints) UpdateStatus(ctx context.Context, networkServiceEndpoint *v1.NetworkServiceEndpoint, opts metav1.UpdateOptions) (result *v1.NetworkServiceEndpoint, err error) {
-	result = &v1.NetworkServiceEndpoint{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("networkserviceendpoints").
-		Name(networkServiceEndpoint.Name).
-		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(networkServiceEndpoint).
 		Do(ctx).

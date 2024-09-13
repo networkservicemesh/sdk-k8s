@@ -44,7 +44,6 @@ type NetworkService struct {
 	metaV1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   NetworkServiceSpec   `json:"spec"`
-	Status NetworkServiceStatus `json:"status"`
 }
 
 type NetworkServiceSpec registry.NetworkService
@@ -57,7 +56,6 @@ func (in *NetworkServiceSpec) DeepCopyInto(out *NetworkServiceSpec) {
 	out.Matches = clone.Matches
 }
 
-type NetworkServiceStatus struct{}
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type NetworkServiceList struct {
@@ -74,7 +72,6 @@ type NetworkServiceEndpoint struct {
 	metaV1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   NetworkServiceEndpointSpec   `json:"spec"`
-	Status NetworkServiceEndpointStatus `json:"status"`
 }
 
 type NetworkServiceEndpointSpec registry.NetworkServiceEndpoint
@@ -88,9 +85,6 @@ func (in *NetworkServiceEndpointSpec) DeepCopyInto(out *NetworkServiceEndpointSp
 	out.NetworkServiceLabels = clone.NetworkServiceLabels
 }
 
-type NetworkServiceEndpointStatus struct {
-	State State `json:"state"`
-}
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type NetworkServiceEndpointList struct {

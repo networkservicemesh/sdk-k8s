@@ -107,18 +107,6 @@ func (c *FakeNetworkServiceEndpoints) Update(ctx context.Context, networkService
 	return obj.(*networkservicemeshiov1.NetworkServiceEndpoint), err
 }
 
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeNetworkServiceEndpoints) UpdateStatus(ctx context.Context, networkServiceEndpoint *networkservicemeshiov1.NetworkServiceEndpoint, opts v1.UpdateOptions) (*networkservicemeshiov1.NetworkServiceEndpoint, error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(networkserviceendpointsResource, "status", c.ns, networkServiceEndpoint), &networkservicemeshiov1.NetworkServiceEndpoint{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*networkservicemeshiov1.NetworkServiceEndpoint), err
-}
-
 // Delete takes name of the networkServiceEndpoint and deletes it. Returns an error if one occurs.
 func (c *FakeNetworkServiceEndpoints) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
