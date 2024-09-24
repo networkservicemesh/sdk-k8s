@@ -1,6 +1,6 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
-// Copyright (c) 2022-2023 Cisco and/or its affiliates.
+// Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,13 +19,15 @@
 package etcd
 
 import (
+	"container/list"
 	"context"
 	"io"
 	"sync"
 	"time"
 
+	"github.com/edwarnicke/serialize"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/networkservicemesh/sdk/pkg/tools/log"
+
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +35,7 @@ import (
 
 	"github.com/networkservicemesh/api/pkg/api/registry"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/next"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 	"github.com/networkservicemesh/sdk/pkg/tools/matchutils"
 
 	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
@@ -40,18 +43,110 @@ import (
 )
 
 type etcdNSERegistryServer struct {
-	chainContext context.Context
-	client       versioned.Interface
-	versions     sync.Map
-	ns           string
+	chainContext   context.Context
+	deleteExecutor serialize.Executor
+	client         versioned.Interface
+	versions       sync.Map
+	ns             string
+
+	subscribers      *list.List
+	subscribersMutex sync.Mutex
+
+	updateChannelSize int
+}
+
+// NewNetworkServiceEndpointRegistryServer creates new registry.NetworkServiceRegistryServer that is using etcd to store network services.
+func NewNetworkServiceEndpointRegistryServer(chainContext context.Context, ns string, client versioned.Interface) registry.NetworkServiceEndpointRegistryServer {
+	ret := &etcdNSERegistryServer{
+		chainContext:      chainContext,
+		client:            client,
+		ns:                ns,
+		subscribers:       list.New(),
+		updateChannelSize: 64,
+	}
+
+	go ret.watchRemoteStorage()
+
+	return ret
+}
+
+func (n *etcdNSERegistryServer) watchRemoteStorage() {
+	const minSleepTime = time.Millisecond * 50
+	const maxSleepTime = minSleepTime * 5
+
+	sleepTime := minSleepTime
+	logger := log.FromContext(n.chainContext).WithField("etcdNSERegistryServer", "watchRemoteStorage")
+
+	for n.chainContext.Err() == nil {
+		timeoutSeconds := int64(time.Minute / time.Second)
+		watcher, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").Watch(n.chainContext, metav1.ListOptions{
+			TimeoutSeconds: &timeoutSeconds,
+		})
+		if err != nil {
+			time.Sleep(sleepTime)
+			sleepTime += minSleepTime
+			sleepTime = min(sleepTime, maxSleepTime)
+			continue
+		}
+		sleepTime = minSleepTime
+
+		isWatcherFine := true
+		for isWatcherFine {
+			select {
+			case <-n.chainContext.Done():
+				return
+			case event, ok := <-watcher.ResultChan():
+				if !ok {
+					isWatcherFine = false
+					break
+				}
+				deleted := event.Type == watch.Deleted
+				model, ok := event.Object.(*v1.NetworkServiceEndpoint)
+				if !ok {
+					logger.Errorf("event: %v", event)
+					continue
+				}
+				item := (*registry.NetworkServiceEndpoint)(&model.Spec)
+				if item.Name == "" {
+					item.Name = model.GetName()
+				}
+				resp := &registry.NetworkServiceEndpointResponse{
+					NetworkServiceEndpoint: item,
+					Deleted:                deleted,
+				}
+				n.sendEvent(resp)
+				if !deleted && item.ExpirationTime != nil && item.ExpirationTime.AsTime().Local().Before(time.Now()) {
+					n.versions.Delete(item.GetName())
+					n.deleteExecutor.AsyncExec(func() {
+						_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, item.GetName(), metav1.DeleteOptions{
+							Preconditions: &metav1.Preconditions{
+								ResourceVersion: &model.ResourceVersion,
+							},
+						})
+					})
+				}
+			}
+		}
+		watcher.Stop()
+	}
+}
+
+func (n *etcdNSERegistryServer) sendEvent(resp *registry.NetworkServiceEndpointResponse) {
+	n.subscribersMutex.Lock()
+	for curr := n.subscribers.Front(); curr != nil; curr = curr.Next() {
+		select {
+		case curr.Value.(chan *registry.NetworkServiceEndpointResponse) <- resp:
+		default:
+		}
+	}
+	n.subscribersMutex.Unlock()
 }
 
 func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.NetworkServiceEndpoint) (*registry.NetworkServiceEndpoint, error) {
-	meta := metav1.ObjectMeta{}
-	if request.Name == "" {
-		meta.GenerateName = "nse-"
-	} else {
-		meta.Name = request.Name
+	meta := metav1.ObjectMeta{
+		GenerateName: "nse-",
+		Name:         request.GetName(),
+		Namespace:    n.ns,
 	}
 	apiResp, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Create(
 		ctx,
@@ -61,24 +156,14 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 		},
 		metav1.CreateOptions{},
 	)
-	err = errors.Wrapf(err, "failed to create a pod %s in a namespace %s", request.Name, n.ns)
-	if apierrors.IsAlreadyExists(err) {
-		var nse *v1.NetworkServiceEndpoint
-		list, listErr := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(ctx, metav1.ListOptions{})
-		if listErr != nil {
-			return nil, errors.Wrap(listErr, "failed to get a list of NetworkServiceEndpoints")
-		}
-		for i := 0; i < len(list.Items); i++ {
-			item := (*registry.NetworkServiceEndpoint)(&list.Items[i].Spec)
-			if item.Name == "" {
-				item.Name = list.Items[i].Name
-			}
-			if request.Name == item.Name {
-				list.Items[i].Spec = *(*v1.NetworkServiceEndpointSpec)(request)
-				nse = &list.Items[i]
-			}
-		}
 
+	err = errors.Wrapf(err, "failed to create a nse %s in a namespace %s", request.Name, n.ns)
+
+	if apierrors.IsAlreadyExists(err) {
+		nse, nseErr := n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Get(ctx, request.GetName(), metav1.GetOptions{})
+		if nseErr != nil {
+			err = errors.Wrapf(err, "failed to get a nse %s in a namespace %s, reason: %v", request.Name, n.ns, nseErr.Error())
+		}
 		if nse != nil {
 			apiResp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(ctx, nse, metav1.UpdateOptions{})
 			if err != nil {
@@ -100,32 +185,35 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 }
 
 func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
-	list, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(s.Context(), metav1.ListOptions{})
+	items, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").List(s.Context(), metav1.ListOptions{})
 	if err != nil {
 		return errors.Wrap(err, "failed to get a list of NetworkServiceEndpoints")
 	}
-	for i := 0; i < len(list.Items); i++ {
-		item := (*registry.NetworkServiceEndpoint)(&list.Items[i].Spec)
-		if item.Name == "" {
-			item.Name = list.Items[i].Name
+	for i := 0; i < len(items.Items); i++ {
+		crd := &items.Items[i]
+		nse := (*registry.NetworkServiceEndpoint)(&crd.Spec)
+		if nse.Name == "" {
+			nse.Name = items.Items[i].Name
 		}
-		if item.ExpirationTime != nil && item.ExpirationTime.AsTime().Local().Before(time.Now()) {
-			_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, item.Name, metav1.DeleteOptions{
-				Preconditions: &metav1.Preconditions{
-					ResourceVersion: &list.Items[i].ResourceVersion,
-				},
+		if nse.ExpirationTime != nil && nse.ExpirationTime.AsTime().Local().Before(time.Now()) {
+			n.deleteExecutor.AsyncExec(func() {
+				_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, nse.GetName(), metav1.DeleteOptions{
+					Preconditions: &metav1.Preconditions{
+						ResourceVersion: &crd.ResourceVersion,
+					},
+				})
 			})
 			continue
 		}
-		if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
-			err := s.Send(&registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: item})
+		if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, nse) {
+			err := s.Send(&registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: nse})
 			if err != nil {
-				return errors.Wrapf(err, "NetworkServiceEndpointRegistry find server failed to send a response %s", item.String())
+				return errors.Wrapf(err, "NetworkServiceEndpointRegistry find server failed to send a response %s", nse.String())
 			}
 		}
 	}
 	if query.Watch {
-		if err := n.watch(query, s); err != nil && !errors.Is(err, io.EOF) {
+		if err := n.watch(s.Context(), query, s); err != nil && !errors.Is(err, io.EOF) {
 			return err
 		}
 	}
@@ -162,89 +250,38 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to delete a NetworkServiceEndpoints %s in a namespace %s", request.Name, n.ns)
 		}
+		n.versions.Delete(request.GetName())
 	}
 	return resp, nil
 }
 
-func (n *etcdNSERegistryServer) watch(query *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
-	logger := log.FromContext(n.chainContext).WithField("etcdNSERegistryServer", "watch")
-	var watchErr error
-	for watchErr == nil {
-		timeoutSeconds := int64(time.Minute / time.Second)
-		watcher, err := n.client.NetworkservicemeshV1().NetworkServiceEndpoints("").Watch(s.Context(), metav1.ListOptions{
-			TimeoutSeconds: &timeoutSeconds,
-		})
-		if err != nil {
-			return errors.Wrap(err, "failed to get a watch.Interface for a requested networkServiceEndpoints")
-		}
+func (n *etcdNSERegistryServer) subscribeOnEvents(ctx context.Context) <-chan *registry.NetworkServiceEndpointResponse {
+	var ret = make(chan *registry.NetworkServiceEndpointResponse, n.updateChannelSize)
 
-		watchErr = n.handleWatcher(watcher, query, s)
+	n.subscribersMutex.Lock()
+	var node = n.subscribers.PushBack(ret)
+	n.subscribersMutex.Unlock()
 
-		watcher.Stop()
-	}
+	go func() {
+		<-ctx.Done()
 
-	// If the watch timed out, return nil to close the stream
-	// cleanly.
-	if errors.Is(watchErr, context.Canceled) {
-		logger.Debug("watch timed out, returning nil")
-		return nil
-	}
-	// If something else went wrong, return the error.
-	return watchErr
+		n.subscribersMutex.Lock()
+		n.subscribers.Remove(node)
+		n.subscribersMutex.Unlock()
+
+		close(ret)
+	}()
+
+	return ret
 }
 
-func (n *etcdNSERegistryServer) handleWatcher(
-	watcher watch.Interface,
-	query *registry.NetworkServiceEndpointQuery,
-	s registry.NetworkServiceEndpointRegistry_FindServer,
-) error {
-	logger := log.FromContext(n.chainContext).WithField("etcdNSERegistryServer", "handleWatcher")
-
-	var event watch.Event
-	for watcherOpened := true; watcherOpened; {
-		select {
-		case <-n.chainContext.Done():
-			return errors.Wrap(n.chainContext.Err(), "application context is done")
-		case <-s.Context().Done():
-			return errors.Wrap(s.Context().Err(), "find context is done")
-		case event, watcherOpened = <-watcher.ResultChan():
-			if !watcherOpened {
-				logger.Warn("watcher is closed, retrying")
-				continue
-			}
-			model, ok := event.Object.(*v1.NetworkServiceEndpoint)
-			if !ok {
-				logger.Errorf("event: %v", event)
-				continue
-			}
-			item := (*registry.NetworkServiceEndpoint)(&model.Spec)
-			if item.Name == "" {
-				item.Name = model.GetName()
-			}
-			if v, ok := n.versions.Load(item.Name); ok && v == model.ResourceVersion {
-				continue
-			}
-
-			if matchutils.MatchNetworkServiceEndpoints(query.NetworkServiceEndpoint, item) {
-				nseResp := &registry.NetworkServiceEndpointResponse{NetworkServiceEndpoint: item}
-				if event.Type == watch.Deleted {
-					nseResp.Deleted = true
-				}
-				err := s.Send(nseResp)
-				if err != nil {
-					return errors.Wrapf(err, "NetworkServiceEndpointRegistry find server failed to send a response %s", nseResp.String())
-				}
+func (n *etcdNSERegistryServer) watch(ctx context.Context, q *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
+	for update := range n.subscribeOnEvents(ctx) {
+		if matchutils.MatchNetworkServiceEndpoints(q.GetNetworkServiceEndpoint(), update.GetNetworkServiceEndpoint()) {
+			if err := s.Send(update); err != nil {
+				return err
 			}
 		}
 	}
 	return nil
-}
-
-// NewNetworkServiceEndpointRegistryServer creates new registry.NetworkServiceRegistryServer that is using etcd to store network services.
-func NewNetworkServiceEndpointRegistryServer(chainContext context.Context, ns string, client versioned.Interface) registry.NetworkServiceEndpointRegistryServer {
-	return &etcdNSERegistryServer{
-		chainContext: chainContext,
-		client:       client,
-		ns:           ns,
-	}
 }

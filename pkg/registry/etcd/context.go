@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Cisco and/or its affiliates.
+// Copyright (c) 2023-2024 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,7 +16,10 @@
 
 package etcd
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type versionKey struct{}
 
@@ -27,4 +30,11 @@ func withNSEVersion(ctx context.Context, version string) context.Context {
 func nseVersionFromContext(ctx context.Context) (string, bool) {
 	version, ok := ctx.Value(versionKey{}).(string)
 	return version, ok
+}
+
+func min(a, b time.Duration) time.Duration {
+	if a > b {
+		return b
+	}
+	return a
 }
