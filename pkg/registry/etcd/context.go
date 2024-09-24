@@ -32,13 +32,6 @@ func nseVersionFromContext(ctx context.Context) (string, bool) {
 	return version, ok
 }
 
-func max(a, b time.Duration) time.Duration {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func min(a, b time.Duration) time.Duration {
 	if a > b {
 		return b

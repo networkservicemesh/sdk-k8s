@@ -85,7 +85,7 @@ func (n *etcdNSRegistryServer) watchRemoteStorage() {
 			sleepTime = min(sleepTime, maxSleepTime)
 			continue
 		}
-		sleepTime = max(sleepTime, minSleepTime)
+		sleepTime = minSleepTime
 
 		isWatcherFine := true
 		for isWatcherFine {

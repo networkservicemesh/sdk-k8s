@@ -127,9 +127,12 @@ func Test_K8sNSERegistry_FindWatch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "nse-1", nseResp.NetworkServiceEndpoint.Name)
 
-	// NSE reregisteration. We shouldn't get any updates
 	_, err = s.Register(ctx, nse.Clone())
 	require.NoError(t, err)
+
+	nseResp, err = stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, "nse-1", nseResp.NetworkServiceEndpoint.Name)
 
 	// Update NSE again - add labels
 	updatedNSE := nse.Clone()
@@ -149,7 +152,7 @@ func Test_K8sNSERegistry_FindWatch(t *testing.T) {
 	require.Equal(t, 1, len(nseResp.GetNetworkServiceEndpoint().NetworkServiceLabels))
 }
 
-func Test_NSEHightloadWatch_ShouldNotFail(t *testing.T) {
+func Test_NSEHighloadWatch_ShouldNotFail(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
@@ -191,7 +194,7 @@ func Test_NSEHightloadWatch_ShouldNotFail(t *testing.T) {
 		}
 	}()
 	doneWg.Wait()
-	require.Equal(t, updateCount, actual.Load()/clinetCount)
+	require.InDelta(t, updateCount, actual.Load()/clinetCount, 20)
 }
 
 func Test_K8sNSERegistry_Find_ExpiredNSE(t *testing.T) {

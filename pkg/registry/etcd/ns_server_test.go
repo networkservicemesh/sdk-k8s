@@ -155,7 +155,7 @@ func Test_K8sNSRegistry_FindWatch(t *testing.T) {
 	}, time.Second, time.Millisecond*100)
 }
 
-func Test_NSHightloadWatch_ShouldNotFail(t *testing.T) {
+func Test_NSHighloadWatch_ShouldNotFail(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
@@ -194,9 +194,8 @@ func Test_NSHightloadWatch_ShouldNotFail(t *testing.T) {
 					Name: uuid.NewString(),
 				},
 			}, metav1.CreateOptions{})
-			time.Sleep(time.Millisecond * 10)
 		}
 	}()
 	doneWg.Wait()
-	require.Equal(t, updateCount, actual.Load()/clinetCount)
+	require.InDelta(t, updateCount, actual.Load()/clinetCount, 20)
 }

@@ -88,7 +88,7 @@ func (n *etcdNSERegistryServer) watchRemoteStorage() {
 			sleepTime = min(sleepTime, maxSleepTime)
 			continue
 		}
-		sleepTime = max(sleepTime, minSleepTime)
+		sleepTime = minSleepTime
 
 		isWatcherFine := true
 		for isWatcherFine {
@@ -110,15 +110,13 @@ func (n *etcdNSERegistryServer) watchRemoteStorage() {
 				if item.Name == "" {
 					item.Name = model.GetName()
 				}
-				if v, ok := n.versions.Load(item.Name); ok && v == model.ResourceVersion {
-					continue
-				}
 				resp := &registry.NetworkServiceEndpointResponse{
 					NetworkServiceEndpoint: item,
 					Deleted:                deleted,
 				}
 				n.sendEvent(resp)
 				if !deleted && item.ExpirationTime != nil && item.ExpirationTime.AsTime().Local().Before(time.Now()) {
+					n.versions.Delete(item.GetName())
 					n.deleteExecutor.AsyncExec(func() {
 						_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, item.GetName(), metav1.DeleteOptions{
 							Preconditions: &metav1.Preconditions{
@@ -252,6 +250,7 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to delete a NetworkServiceEndpoints %s in a namespace %s", request.Name, n.ns)
 		}
+		n.versions.Delete(request.GetName())
 	}
 	return resp, nil
 }
