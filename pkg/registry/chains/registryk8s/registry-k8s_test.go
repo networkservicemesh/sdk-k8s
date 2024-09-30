@@ -42,6 +42,7 @@ import (
 	"github.com/networkservicemesh/sdk/pkg/networkservice/ipam/point2pointipam"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/ipam/strictipam"
 	"github.com/networkservicemesh/sdk/pkg/networkservice/utils/checks/checkresponse"
+	"github.com/networkservicemesh/sdk/pkg/networkservice/utils/count"
 	registryserver "github.com/networkservicemesh/sdk/pkg/registry"
 	registryclient "github.com/networkservicemesh/sdk/pkg/registry/chains/client"
 	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
@@ -400,7 +401,84 @@ func TestNSMGR_InterdomainUseCase(t *testing.T) {
 	_, err = nsc.Close(ctx, conn)
 	require.NoError(t, err)
 }
+func TestNSMGR_HealRegistry(t *testing.T) {
+	t.Cleanup(func() { goleak.VerifyNone(t) })
 
+	const timeout = time.Second * 5
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	clientSet := fake.NewSimpleClientset()
+
+	domain := sandbox.NewBuilder(ctx, t).
+		SetNodesCount(1).
+		SetRegistrySupplier(supplyK8sRegistryWithClientSet(clientSet)).
+		SetNSMgrProxySupplier(nil).
+		SetRegistryProxySupplier(nil).
+		Build()
+
+	nsRegistryClient := domain.NewNSRegistryClient(ctx, sandbox.GenerateTestToken)
+
+	nsReg, err := nsRegistryClient.Register(ctx, defaultRegistryService(t.Name()))
+	require.NoError(t, err)
+
+	nseReg := defaultRegistryEndpoint(nsReg.Name)
+
+	counter := new(count.Server)
+	domain.Nodes[0].NewEndpoint(ctx, nseReg, sandbox.GenerateTestToken, counter)
+
+	request := defaultRequest(nsReg.Name)
+
+	nsc := domain.Nodes[0].NewClient(ctx, sandbox.GenerateTestToken)
+
+	conn, err := nsc.Request(ctx, request.Clone())
+	require.NoError(t, err)
+
+	// 1. Restart Registry
+	domain.Registry.Restart()
+
+	// 2. Check refresh
+	request.Connection = conn
+	_, err = nsc.Request(ctx, request.Clone())
+	require.NoError(t, err)
+
+	// 3. Check new client request
+	nsc = domain.Nodes[0].NewClient(ctx, sandbox.GenerateTestToken)
+
+	_, err = nsc.Request(ctx, request.Clone())
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return counter.Requests() >= 3
+	}, timeout, time.Second/10)
+}
+
+func defaultRegistryService(name string) *registry.NetworkService {
+	return &registry.NetworkService{
+		Name: name,
+	}
+}
+
+func defaultRegistryEndpoint(nsName string) *registry.NetworkServiceEndpoint {
+	return &registry.NetworkServiceEndpoint{
+		Name:                "final-endpoint",
+		NetworkServiceNames: []string{nsName},
+	}
+}
+
+func defaultRequest(nsName string) *networkservice.NetworkServiceRequest {
+	return &networkservice.NetworkServiceRequest{
+		MechanismPreferences: []*networkservice.Mechanism{
+			{Cls: cls.LOCAL, Type: kernelmech.MECHANISM},
+		},
+		Connection: &networkservice.Connection{
+			Id:             uuid.NewString(),
+			NetworkService: nsName,
+			Context:        &networkservice.ConnectionContext{},
+			Labels:         make(map[string]string),
+		},
+	}
+}
 func TestNSMGR_FloatingInterdomainUseCase(t *testing.T) {
 	t.Cleanup(func() { goleak.VerifyNone(t, ignoreKLogDaemon) })
 

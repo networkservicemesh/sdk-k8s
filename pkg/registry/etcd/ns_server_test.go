@@ -20,6 +20,7 @@ package etcd_test
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -28,6 +29,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/networkservicemesh/api/pkg/api/registry"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
@@ -38,13 +40,50 @@ import (
 )
 
 func Test_NSReRegister(t *testing.T) {
-	s := etcd.NewNetworkServiceRegistryServer(context.Background(), "", fake.NewSimpleClientset())
-	_, err := s.Register(context.Background(), &registry.NetworkService{Name: "ns-1"})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	s := etcd.NewNetworkServiceRegistryServer(ctx, "", fake.NewSimpleClientset())
+	_, err := s.Register(ctx, &registry.NetworkService{Name: "netsvc-1"})
 	require.NoError(t, err)
-	_, err = s.Register(context.Background(), &registry.NetworkService{Name: "ns-1", Payload: "IP"})
+	_, err = s.Register(ctx, &registry.NetworkService{Name: "netsvc-1"})
 	require.NoError(t, err)
 }
 
+func Test_NSServer_UpdateShouldWorkСonsistently(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	s := etcd.NewNetworkServiceRegistryServer(ctx, "", fake.NewSimpleClientset())
+
+	var expected []*registry.NetworkService
+	// Register
+	for i := 0; i < 10; i++ {
+		expected = append(expected, &registry.NetworkService{Name: "netsvc-" + fmt.Sprint(i)})
+		_, err := s.Register(ctx, expected[len(expected)-1].Clone())
+		require.NoError(t, err)
+	}
+
+	// Update only first nse
+	expected[0].Payload = "ip"
+	_, err := s.Register(ctx, expected[0].Clone())
+	require.NoError(t, err)
+
+	// Update only last nse
+	expected[len(expected)-1].Payload = "ethernet"
+	_, err = s.Register(ctx, expected[len(expected)-1].Clone())
+	require.NoError(t, err)
+
+	// Get all nses
+	stream, err := adapters.NetworkServiceServerToClient(s).Find(ctx, &registry.NetworkServiceQuery{NetworkService: &registry.NetworkService{}})
+	require.NoError(t, err)
+
+	nsList := registry.ReadNetworkServiceList(stream)
+
+	require.Len(t, nsList, 10)
+
+	for i := range nsList {
+		require.True(t, proto.Equal(expected[i], nsList[i]))
+	}
+}
 func Test_K8sNSRegistry_ShouldMatchMetadataToName(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

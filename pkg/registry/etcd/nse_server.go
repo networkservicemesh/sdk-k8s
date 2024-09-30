@@ -165,6 +165,7 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 			err = errors.Wrapf(err, "failed to get a nse %s in a namespace %s, reason: %v", request.Name, n.ns, nseErr.Error())
 		}
 		if nse != nil {
+			nse.Spec = *(*v1.NetworkServiceEndpointSpec)(request)
 			apiResp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(ctx, nse, metav1.UpdateOptions{})
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to update a pod %s in a namespace %s", nse.Name, n.ns)
