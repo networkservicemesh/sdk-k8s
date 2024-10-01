@@ -20,6 +20,7 @@ package etcd_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -30,6 +31,7 @@ import (
 	"github.com/networkservicemesh/api/pkg/api/registry"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -41,11 +43,49 @@ import (
 )
 
 func Test_NSEReRegister(t *testing.T) {
-	s := etcd.NewNetworkServiceEndpointRegistryServer(context.Background(), "", fake.NewSimpleClientset())
-	_, err := s.Register(context.Background(), &registry.NetworkServiceEndpoint{Name: "nse-1"})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	s := etcd.NewNetworkServiceEndpointRegistryServer(ctx, "", fake.NewSimpleClientset())
+	_, err := s.Register(ctx, &registry.NetworkServiceEndpoint{Name: "nse-1"})
 	require.NoError(t, err)
-	_, err = s.Register(context.Background(), &registry.NetworkServiceEndpoint{Name: "nse-1", NetworkServiceNames: []string{"ns-1"}})
+	_, err = s.Register(ctx, &registry.NetworkServiceEndpoint{Name: "nse-1", NetworkServiceNames: []string{"ns-1"}})
 	require.NoError(t, err)
+}
+
+func Test_NSEServer_UpdateShouldWorkСonsistently(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	s := etcd.NewNetworkServiceEndpointRegistryServer(ctx, "", fake.NewSimpleClientset())
+
+	var expected []*registry.NetworkServiceEndpoint
+	// Register
+	for i := 0; i < 10; i++ {
+		expected = append(expected, &registry.NetworkServiceEndpoint{Name: "nse-" + fmt.Sprint(i)})
+		_, err := s.Register(ctx, expected[len(expected)-1].Clone())
+		require.NoError(t, err)
+	}
+
+	// Update only first nse
+	expected[0].NetworkServiceNames = []string{"ns-1"}
+	_, err := s.Register(ctx, expected[0].Clone())
+	require.NoError(t, err)
+
+	// Update only last nse
+	expected[len(expected)-1].NetworkServiceNames = []string{"ns-2", "ns-3"}
+	_, err = s.Register(ctx, expected[len(expected)-1].Clone())
+	require.NoError(t, err)
+
+	// Get all nses
+	stream, err := adapters.NetworkServiceEndpointServerToClient(s).Find(ctx, &registry.NetworkServiceEndpointQuery{NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{}})
+	require.NoError(t, err)
+
+	nseList := registry.ReadNetworkServiceEndpointList(stream)
+
+	require.Len(t, nseList, 10)
+
+	for i := range nseList {
+		require.True(t, proto.Equal(expected[i], nseList[i]))
+	}
 }
 
 func Test_K8sNSERegistry_ShouldMatchMetadataToName(t *testing.T) {

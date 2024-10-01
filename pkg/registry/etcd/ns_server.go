@@ -131,7 +131,7 @@ func (n *etcdNSRegistryServer) sendEvent(resp *registry.NetworkServiceResponse) 
 
 func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.NetworkService) (*registry.NetworkService, error) {
 	meta := metav1.ObjectMeta{
-		GenerateName: "nse-",
+		GenerateName: "netsvc-",
 		Name:         request.GetName(),
 		Namespace:    n.ns,
 	}
@@ -144,17 +144,18 @@ func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.N
 		metav1.CreateOptions{},
 	)
 
-	err = errors.Wrapf(err, "failed to create a nse %s in a namespace %s", request.Name, n.ns)
+	err = errors.Wrapf(err, "failed to create a netsvc %s in a namespace %s", request.Name, n.ns)
 
 	if apierrors.IsAlreadyExists(err) {
-		nse, nseErr := n.client.NetworkservicemeshV1().NetworkServices(n.ns).Get(ctx, request.GetName(), metav1.GetOptions{})
+		netsvc, nseErr := n.client.NetworkservicemeshV1().NetworkServices(n.ns).Get(ctx, request.GetName(), metav1.GetOptions{})
 		if nseErr != nil {
-			err = errors.Wrapf(err, "failed to get a nse %s in a namespace %s, reason: %v", request.Name, n.ns, nseErr.Error())
+			err = errors.Wrapf(err, "failed to get a netsvc %s in a namespace %s, reason: %v", request.Name, n.ns, nseErr.Error())
 		}
-		if nse != nil {
-			_, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, nse, metav1.UpdateOptions{})
+		if netsvc != nil {
+			netsvc.Spec = *(*v1.NetworkServiceSpec)(request)
+			_, err = n.client.NetworkservicemeshV1().NetworkServices(n.ns).Update(ctx, netsvc, metav1.UpdateOptions{})
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to update a pod %s in a namespace %s", nse.Name, n.ns)
+				return nil, errors.Wrapf(err, "failed to update a pod %s in a namespace %s", netsvc.Name, n.ns)
 			}
 			return next.NetworkServiceRegistryServer(ctx).Register(ctx, request)
 		}
@@ -173,14 +174,14 @@ func (n *etcdNSRegistryServer) Find(query *registry.NetworkServiceQuery, s regis
 	}
 	for i := 0; i < len(items.Items); i++ {
 		crd := &items.Items[i]
-		nse := (*registry.NetworkService)(&crd.Spec)
-		if nse.Name == "" {
-			nse.Name = items.Items[i].Name
+		netsvc := (*registry.NetworkService)(&crd.Spec)
+		if netsvc.Name == "" {
+			netsvc.Name = items.Items[i].Name
 		}
-		if matchutils.MatchNetworkServices(query.NetworkService, nse) {
-			err := s.Send(&registry.NetworkServiceResponse{NetworkService: nse})
+		if matchutils.MatchNetworkServices(query.NetworkService, netsvc) {
+			err := s.Send(&registry.NetworkServiceResponse{NetworkService: netsvc})
 			if err != nil {
-				return errors.Wrapf(err, "NetworkServiceRegistry find server failed to send a response %s", nse.String())
+				return errors.Wrapf(err, "NetworkServiceRegistry find server failed to send a response %s", netsvc.String())
 			}
 		}
 	}
