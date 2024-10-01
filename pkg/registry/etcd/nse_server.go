@@ -249,7 +249,7 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 				},
 			})
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to delete a NetworkServiceEndpoints %s in a namespace %s", request.Name, n.ns)
+			log.FromContext(ctx).Warnf("failed to delete a NetworkServiceEndpoints %s in a namespace %s, cause: %v", request.Name, n.ns, err.Error())
 		}
 		n.versions.Delete(request.GetName())
 	}
