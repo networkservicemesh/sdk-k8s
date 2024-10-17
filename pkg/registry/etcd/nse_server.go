@@ -246,7 +246,6 @@ func (n *etcdNSERegistryServer) subscribeOnEvents(ctx context.Context) <-chan *r
 			n.subscribers.Remove(node)
 			close(ret)
 		})
-
 	}()
 
 	return ret
