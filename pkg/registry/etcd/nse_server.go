@@ -22,7 +22,6 @@ import (
 	"container/list"
 	"context"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/edwarnicke/serialize"
@@ -46,11 +45,10 @@ type etcdNSERegistryServer struct {
 	chainContext   context.Context
 	deleteExecutor serialize.Executor
 	client         versioned.Interface
-	versions       sync.Map
 	ns             string
 
-	subscribers      *list.List
-	subscribersMutex sync.Mutex
+	subscribers         *list.List
+	subscribersExecutor serialize.Executor
 
 	updateChannelSize int
 }
@@ -114,9 +112,8 @@ func (n *etcdNSERegistryServer) watchRemoteStorage() {
 					NetworkServiceEndpoint: item,
 					Deleted:                deleted,
 				}
-				n.sendEvent(resp)
+				n.subscribersExecutor.AsyncExec(func() { n.sendEvent(resp) })
 				if !deleted && item.ExpirationTime != nil && item.ExpirationTime.AsTime().Local().Before(time.Now()) {
-					n.versions.Delete(item.GetName())
 					n.deleteExecutor.AsyncExec(func() {
 						_ = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(n.chainContext, item.GetName(), metav1.DeleteOptions{
 							Preconditions: &metav1.Preconditions{
@@ -132,14 +129,9 @@ func (n *etcdNSERegistryServer) watchRemoteStorage() {
 }
 
 func (n *etcdNSERegistryServer) sendEvent(resp *registry.NetworkServiceEndpointResponse) {
-	n.subscribersMutex.Lock()
 	for curr := n.subscribers.Front(); curr != nil; curr = curr.Next() {
-		select {
-		case curr.Value.(chan *registry.NetworkServiceEndpointResponse) <- resp:
-		default:
-		}
+		curr.Value.(chan *registry.NetworkServiceEndpointResponse) <- resp
 	}
-	n.subscribersMutex.Unlock()
 }
 
 func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.NetworkServiceEndpoint) (*registry.NetworkServiceEndpoint, error) {
@@ -167,20 +159,11 @@ func (n *etcdNSERegistryServer) Register(ctx context.Context, request *registry.
 		if nse != nil {
 			nse.Spec = *(*v1.NetworkServiceEndpointSpec)(request)
 			apiResp, err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Update(ctx, nse, metav1.UpdateOptions{})
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to update a pod %s in a namespace %s", nse.Name, n.ns)
-			}
-
-			n.versions.Store(apiResp.Spec.Name, apiResp.ResourceVersion)
-			ctx = withNSEVersion(ctx, apiResp.ResourceVersion)
-			return next.NetworkServiceEndpointRegistryServer(ctx).Register(ctx, request)
 		}
 	}
 	if err != nil {
 		return nil, err
 	}
-
-	n.versions.Store(apiResp.Spec.Name, apiResp.ResourceVersion)
 	ctx = withNSEVersion(ctx, apiResp.ResourceVersion)
 	return next.NetworkServiceEndpointRegistryServer(ctx).Register(ctx, request)
 }
@@ -214,7 +197,9 @@ func (n *etcdNSERegistryServer) Find(query *registry.NetworkServiceEndpointQuery
 		}
 	}
 	if query.Watch {
-		if err := n.watch(s.Context(), query, s); err != nil && !errors.Is(err, io.EOF) {
+		var watchCtx, cancel = context.WithCancel(s.Context())
+		defer cancel()
+		if err := n.watch(watchCtx, query, s); err != nil && !errors.Is(err, io.EOF) {
 			return err
 		}
 	}
@@ -226,51 +211,42 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-
-	if _, ok := nseVersionFromContext(ctx); !ok {
-		err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(
-			ctx,
-			request.Name,
-			metav1.DeleteOptions{})
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to delete a NetworkServiceEndpoints %s in a namespace %s", request.Name, n.ns)
-		}
-		return resp, nil
+	var version *string
+	if v, ok := nseVersionFromContext(ctx); ok {
+		version = &v
 	}
 
-	if v, ok := n.versions.Load(request.Name); ok {
-		version := v.(string)
-		err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(
-			ctx,
-			request.Name,
-			metav1.DeleteOptions{
-				Preconditions: &metav1.Preconditions{
-					ResourceVersion: &version,
-				},
-			})
-		if err != nil {
-			log.FromContext(ctx).Warnf("failed to delete a NetworkServiceEndpoints %s in a namespace %s, cause: %v", request.Name, n.ns, err.Error())
-		}
-		n.versions.Delete(request.GetName())
+	err = n.client.NetworkservicemeshV1().NetworkServiceEndpoints(n.ns).Delete(
+		ctx,
+		request.Name,
+		metav1.DeleteOptions{
+			Preconditions: &metav1.Preconditions{
+				ResourceVersion: version,
+			},
+		})
+	if err != nil {
+		log.FromContext(ctx).Warnf("failed to delete a NetworkServiceEndpoints %s in a namespace %s, cause: %v", request.Name, n.ns, err.Error())
 	}
+
 	return resp, nil
 }
 
 func (n *etcdNSERegistryServer) subscribeOnEvents(ctx context.Context) <-chan *registry.NetworkServiceEndpointResponse {
 	var ret = make(chan *registry.NetworkServiceEndpointResponse, n.updateChannelSize)
+	var node *list.Element
 
-	n.subscribersMutex.Lock()
-	var node = n.subscribers.PushBack(ret)
-	n.subscribersMutex.Unlock()
+	n.subscribersExecutor.AsyncExec(func() {
+		node = n.subscribers.PushBack(ret)
+	})
 
 	go func() {
 		<-ctx.Done()
 
-		n.subscribersMutex.Lock()
-		n.subscribers.Remove(node)
-		n.subscribersMutex.Unlock()
+		n.subscribersExecutor.AsyncExec(func() {
+			n.subscribers.Remove(node)
+			close(ret)
+		})
 
-		close(ret)
 	}()
 
 	return ret

@@ -197,7 +197,7 @@ func Test_NSEHighloadWatch_ShouldNotFail(t *testing.T) {
 	defer cancel()
 
 	const clinetCount = 20
-	const updateCount int32 = 200
+	const updateCount int32 = 1000
 
 	var actual atomic.Int32
 	var myClientset = fake.NewSimpleClientset()
