@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
 
@@ -200,6 +201,8 @@ func Test_NSHighloadWatch_ShouldNotFail(t *testing.T) {
 
 	const clinetCount = 20
 	const updateCount int32 = 200
+
+	watch.DefaultChanSize = updateCount
 
 	var actual atomic.Int32
 	var myClientset = fake.NewSimpleClientset()
