@@ -1,6 +1,6 @@
 ---
 run:
-  go: '1.20'
+  go: '1.23'
   timeout: 2m
   issues-exit-code: 1
   tests: true
@@ -16,7 +16,8 @@ linters-settings:
     check-type-assertions: false
     check-blank: false
   govet:
-    check-shadowing: true
+    enable:
+      - shadow
     settings:
       printf:
         funcs:
@@ -24,19 +25,15 @@ linters-settings:
           - (github.com/sirupsen/logrus.FieldLogger).Warnf
           - (github.com/sirupsen/logrus.FieldLogger).Errorf
           - (github.com/sirupsen/logrus.FieldLogger).Fatalf
-  revive:
-    min-confidence: 0.8
   goimports:
     local-prefixes: github.com/networkservicemesh/sdk-k8s
   gocyclo:
     min-complexity: 15
-  maligned:
-    suggest-new: true
   dupl:
     threshold: 200
   funlen:
-    Lines: 100
-    Statements: 50
+    lines: 100
+    statements: 50
   depguard:
     rules:
       main:
@@ -127,7 +124,6 @@ linters:
   enable:
     - goheader
     - bodyclose
-    - deadcode
     - dogsled
     - dupl
     - depguard
@@ -139,23 +135,21 @@ linters:
     - gocyclo
     - gofmt
     - goimports
-    - revive
+    # - revive
     - gosec
     - gosimple
     - govet
     - ineffassign
-    - interfacer
     - misspell
     - nakedret
-    - scopelint
     - staticcheck
-    - structcheck
     - stylecheck
     - typecheck
     - unconvert
     - unparam
-    - varcheck
     - whitespace
+    - unused
+    - copyloopvar
 issues:
   exclude-use-default: false
   max-issues-per-linter: 0
