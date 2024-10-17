@@ -219,8 +219,9 @@ func Test_NSHighloadWatch_ShouldNotFail(t *testing.T) {
 				NetworkService: &registry.NetworkService{},
 				Watch:          true,
 			})
+			ch := registry.ReadNetworkServiceChannel(stream)
 			startWg.Done()
-			for range registry.ReadNetworkServiceChannel(stream) {
+			for range ch {
 				actual.Add(1)
 			}
 		}()
