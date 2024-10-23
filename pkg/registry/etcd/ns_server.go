@@ -22,9 +22,9 @@ import (
 	"container/list"
 	"context"
 	"io"
-	"sync"
 	"time"
 
+	"github.com/edwarnicke/serialize"
 	"github.com/golang/protobuf/ptypes/empty"
 
 	"github.com/pkg/errors"
@@ -46,8 +46,8 @@ type etcdNSRegistryServer struct {
 	client       versioned.Interface
 	ns           string
 
-	subscribers      *list.List
-	subscribersMutex sync.Mutex
+	subscribers         *list.List
+	subscribersExecutor serialize.Executor
 
 	updateChannelSize int
 }
@@ -111,7 +111,9 @@ func (n *etcdNSRegistryServer) watchRemoteStorage() {
 					NetworkService: item,
 					Deleted:        deleted,
 				}
-				n.sendEvent(resp)
+				n.subscribersExecutor.AsyncExec(func() {
+					n.sendEvent(resp)
+				})
 			}
 		}
 		watcher.Stop()
@@ -119,14 +121,9 @@ func (n *etcdNSRegistryServer) watchRemoteStorage() {
 }
 
 func (n *etcdNSRegistryServer) sendEvent(resp *registry.NetworkServiceResponse) {
-	n.subscribersMutex.Lock()
 	for curr := n.subscribers.Front(); curr != nil; curr = curr.Next() {
-		select {
-		case curr.Value.(chan *registry.NetworkServiceResponse) <- resp:
-		default:
-		}
+		curr.Value.(chan *registry.NetworkServiceResponse) <- resp
 	}
-	n.subscribersMutex.Unlock()
 }
 
 func (n *etcdNSRegistryServer) Register(ctx context.Context, request *registry.NetworkService) (*registry.NetworkService, error) {
@@ -186,7 +183,9 @@ func (n *etcdNSRegistryServer) Find(query *registry.NetworkServiceQuery, s regis
 		}
 	}
 	if query.Watch {
-		if err := n.watch(s.Context(), query, s); err != nil && !errors.Is(err, io.EOF) {
+		var watchCtx, cancel = context.WithCancel(s.Context())
+		defer cancel()
+		if err := n.watch(watchCtx, query, s); err != nil && !errors.Is(err, io.EOF) {
 			return err
 		}
 	}
@@ -211,19 +210,18 @@ func (n *etcdNSRegistryServer) Unregister(ctx context.Context, request *registry
 
 func (n *etcdNSRegistryServer) subscribeOnEvents(ctx context.Context) <-chan *registry.NetworkServiceResponse {
 	var ret = make(chan *registry.NetworkServiceResponse, n.updateChannelSize)
+	var node *list.Element
 
-	n.subscribersMutex.Lock()
-	var node = n.subscribers.PushBack(ret)
-	n.subscribersMutex.Unlock()
+	n.subscribersExecutor.AsyncExec(func() {
+		node = n.subscribers.PushBack(ret)
+	})
 
 	go func() {
 		<-ctx.Done()
-
-		n.subscribersMutex.Lock()
-		n.subscribers.Remove(node)
-		n.subscribersMutex.Unlock()
-
-		close(ret)
+		n.subscribersExecutor.AsyncExec(func() {
+			n.subscribers.Remove(node)
+			close(ret)
+		})
 	}()
 
 	return ret

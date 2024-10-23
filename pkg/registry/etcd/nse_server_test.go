@@ -34,6 +34,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
 
@@ -197,8 +198,8 @@ func Test_NSEHighloadWatch_ShouldNotFail(t *testing.T) {
 	defer cancel()
 
 	const clinetCount = 20
-	const updateCount int32 = 200
 
+	var updateCount = watch.DefaultChanSize
 	var actual atomic.Int32
 	var myClientset = fake.NewSimpleClientset()
 
