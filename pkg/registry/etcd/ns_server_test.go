@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/networkservicemesh/sdk/pkg/registry/core/adapters"
 
@@ -199,8 +200,8 @@ func Test_NSHighloadWatch_ShouldNotFail(t *testing.T) {
 	defer cancel()
 
 	const clinetCount = 20
-	const updateCount int32 = 200
 
+	var updateCount = watch.DefaultChanSize
 	var actual atomic.Int32
 	var myClientset = fake.NewSimpleClientset()
 
@@ -219,8 +220,9 @@ func Test_NSHighloadWatch_ShouldNotFail(t *testing.T) {
 				NetworkService: &registry.NetworkService{},
 				Watch:          true,
 			})
+			ch := registry.ReadNetworkServiceChannel(stream)
 			startWg.Done()
-			for range registry.ReadNetworkServiceChannel(stream) {
+			for range ch {
 				actual.Add(1)
 			}
 		}()
