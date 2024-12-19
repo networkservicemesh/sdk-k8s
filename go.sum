@@ -161,10 +161,10 @@ github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9G
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/networkservicemesh/api v1.14.2-rc.1.0.20241209080353-bbb4cd5f8f00 h1:xZGg3H5j9UoQW7GasoQrBtH4RkB9bgKdfuRIM9EUkCQ=
-github.com/networkservicemesh/api v1.14.2-rc.1.0.20241209080353-bbb4cd5f8f00/go.mod h1:GT0Yw1LYFSTxlDyJjBDhIxT82rJ2czZ0TiyzxSyKzvg=
-github.com/networkservicemesh/sdk v0.5.1-0.20241209114224-1e611de3145f h1:vlD2bVrPbOV1ICkBtAUB6HAcPDH0I3SNDIYJdcaGYrM=
-github.com/networkservicemesh/sdk v0.5.1-0.20241209114224-1e611de3145f/go.mod h1:T8IWsaj52yYieCipr0rOViAzWPo7Mc83jI7q61OUFvM=
+github.com/networkservicemesh/api v1.14.2-rc.2 h1:Rh3fWW3s/ncYRqiSWECaXl1I67JIxIgdFjj3QozPHIg=
+github.com/networkservicemesh/api v1.14.2-rc.2/go.mod h1:GT0Yw1LYFSTxlDyJjBDhIxT82rJ2czZ0TiyzxSyKzvg=
+github.com/networkservicemesh/sdk v1.14.2-rc.2 h1:foXwv17UuaEf0P5mRQEZZJzP+4PIht7XtD6ch8yI8EA=
+github.com/networkservicemesh/sdk v1.14.2-rc.2/go.mod h1:XiAEUZMleNAsDyafO3N0KbhXKRNdDDBkxtrmN0wn/Uk=
 github.com/onsi/ginkgo/v2 v2.9.4 h1:xR7vG4IXt5RWx6FfIjyAtsoMAtnc3C/rFXBBd2AjZwE=
 github.com/onsi/ginkgo/v2 v2.9.4/go.mod h1:gCQYp2Q+kSoIj7ykSVb9nskRSsR6PUj4AiLywzIhbKM=
 github.com/onsi/gomega v1.27.6 h1:ENqfyGeS5AX/rlXDd/ETokDz93u0YufY1Pgxuy/PvWE=
