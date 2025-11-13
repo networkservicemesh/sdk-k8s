@@ -2,6 +2,8 @@
 //
 // Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
+// Copyright (c) 2025 OpenInfra Foundation Europe. All rights reserved.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +24,7 @@ import (
 	"container/list"
 	"context"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/edwarnicke/serialize"
@@ -130,7 +133,19 @@ func (n *etcdNSERegistryServer) watchRemoteStorage() {
 
 func (n *etcdNSERegistryServer) sendEvent(resp *registry.NetworkServiceEndpointResponse) {
 	for curr := n.subscribers.Front(); curr != nil; curr = curr.Next() {
-		curr.Value.(chan *registry.NetworkServiceEndpointResponse) <- resp
+		ch := curr.Value.(chan *registry.NetworkServiceEndpointResponse)
+		select {
+		case ch <- resp:
+			// Event sent successfully
+		default:
+			// Drain one old event and try again
+			select {
+			case <-ch:
+				ch <- resp
+			default:
+				// Still can't send, skip this subscriber
+			}
+		}
 	}
 }
 
@@ -234,10 +249,14 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 func (n *etcdNSERegistryServer) subscribeOnEvents(ctx context.Context) <-chan *registry.NetworkServiceEndpointResponse {
 	var ret = make(chan *registry.NetworkServiceEndpointResponse, n.updateChannelSize)
 	var node *list.Element
+	var wg sync.WaitGroup
 
+	wg.Add(1)
 	n.subscribersExecutor.AsyncExec(func() {
+		defer wg.Done()
 		node = n.subscribers.PushBack(ret)
 	})
+	wg.Wait() // Block until subscriber is registered
 
 	go func() {
 		<-ctx.Done()
