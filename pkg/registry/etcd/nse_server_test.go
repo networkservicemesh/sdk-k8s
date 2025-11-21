@@ -2,6 +2,8 @@
 //
 // Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
+// Copyright (c) 2025 OpenInfra Foundation Europe. All rights reserved.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -267,4 +269,95 @@ func Test_K8sNSERegistry_Find_ExpiredNSE(t *testing.T) {
 		resp, err := myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").List(ctx, metav1.ListOptions{})
 		return err == nil && len(resp.Items) == 0
 	}, time.Second/2, time.Millisecond*100)
+}
+
+func Test_SubscribeOnEvents_ShouldReceiveEventEvenIfSentImmediately(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	var myClientset = fake.NewSimpleClientset()
+	s := etcd.NewNetworkServiceEndpointRegistryServer(ctx, "ns-1", myClientset)
+	c := adapters.NetworkServiceEndpointServerToClient(s)
+
+	// Start watching (this will call subscribeOnEvents)
+	stream, err := c.Find(ctx, &registry.NetworkServiceEndpointQuery{
+		NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{
+			Name: "nse-immediate",
+		},
+		Watch: true,
+	})
+	require.NoError(t, err)
+
+	// Create NSE immediately after starting the watch to exercise the race window
+	_, err = myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").Create(ctx, &v1.NetworkServiceEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "nse-immediate",
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// We should receive the event even if it was created immediately
+	nseResp, err := stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, "nse-immediate", nseResp.NetworkServiceEndpoint.Name)
+
+	// Cleanup
+	cancel()
+}
+
+func Test_SendEvent_ShouldNotBlockOnSlowSubscriber(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	var myClientset = fake.NewSimpleClientset()
+	s := etcd.NewNetworkServiceEndpointRegistryServer(ctx, "ns-1", myClientset)
+
+	// Start a slow subscriber: create the stream but do NOT read from it,
+	// so its receive buffer will eventually fill.
+	cSlow := adapters.NetworkServiceEndpointServerToClient(s)
+	streamSlow, err := cSlow.Find(ctx, &registry.NetworkServiceEndpointQuery{
+		NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{},
+		Watch:                  true,
+	})
+	require.NoError(t, err)
+
+	// Start a fast subscriber that consumes events continuously.
+	cFast := adapters.NetworkServiceEndpointServerToClient(s)
+	streamFast, err := cFast.Find(ctx, &registry.NetworkServiceEndpointQuery{
+		NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{},
+		Watch:                  true,
+	})
+	require.NoError(t, err)
+
+	var fastCount atomic.Int32
+	var startWg sync.WaitGroup
+	startWg.Add(1)
+	go func() {
+		startWg.Done()
+		for range registry.ReadNetworkServiceEndpointChannel(streamFast) {
+			fastCount.Add(1)
+		}
+	}()
+
+	// Wait until fast consumer goroutine is running
+	startWg.Wait()
+
+	// Produce many events to overflow the slow subscriber's buffer if sendEvent were blocking.
+	const events = 200
+	for i := 0; i < events; i++ {
+		_, _ = myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").Create(ctx, &v1.NetworkServiceEndpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("nse-%d", i),
+			},
+		}, metav1.CreateOptions{})
+	}
+
+	// Allow some time for processing
+	require.Eventually(t, func() bool {
+		// fast subscriber should receive most of the events even if slow subscriber is stalled.
+		return fastCount.Load() > int32(events/2)
+	}, time.Second*5, time.Millisecond*100)
+
+	_ = streamSlow // not read; cancel will terminate server side
+	cancel()
 }
