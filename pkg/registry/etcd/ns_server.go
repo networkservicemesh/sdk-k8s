@@ -2,6 +2,8 @@
 //
 // Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
+// Copyright (c) 2025 OpenInfra Foundation Europe. All rights reserved.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +24,7 @@ import (
 	"container/list"
 	"context"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/edwarnicke/serialize"
@@ -211,10 +214,14 @@ func (n *etcdNSRegistryServer) Unregister(ctx context.Context, request *registry
 func (n *etcdNSRegistryServer) subscribeOnEvents(ctx context.Context) <-chan *registry.NetworkServiceResponse {
 	var ret = make(chan *registry.NetworkServiceResponse, n.updateChannelSize)
 	var node *list.Element
+	var wg sync.WaitGroup
 
+	wg.Add(1)
 	n.subscribersExecutor.AsyncExec(func() {
+		defer wg.Done()
 		node = n.subscribers.PushBack(ret)
 	})
+	wg.Wait() // Block until subscriber is registered
 
 	go func() {
 		<-ctx.Done()
