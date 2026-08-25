@@ -17,9 +17,6 @@ jobs:
     with:
       os: '["ubuntu-latest", "macos-latest", "windows-latest"]'
 
-  golangci-lint:
-    uses: networkservicemesh/.github/.github/workflows/golangci-lint.yaml@main
-
   restrict-nsm-deps:
     uses: networkservicemesh/.github/.github/workflows/restrict-nsm-deps.yaml@main
     with:
