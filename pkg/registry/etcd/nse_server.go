@@ -2,7 +2,7 @@
 //
 // Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
-// Copyright (c) 2025 OpenInfra Foundation Europe. All rights reserved.
+// Copyright (c) 2025-2026 OpenInfra Foundation Europe. All rights reserved.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -53,6 +53,8 @@ type etcdNSERegistryServer struct {
 	subscribers         *list.List
 	subscribersExecutor serialize.Executor
 
+	subscriberTimeout time.Duration
+	maxSubscribers    int
 	updateChannelSize int
 }
 
@@ -63,6 +65,8 @@ func NewNetworkServiceEndpointRegistryServer(chainContext context.Context, ns st
 		client:            client,
 		ns:                ns,
 		subscribers:       list.New(),
+		subscriberTimeout: 5 * time.Second,
+		maxSubscribers:    1000,
 		updateChannelSize: 64,
 	}
 
@@ -133,7 +137,21 @@ func (n *etcdNSERegistryServer) watchRemoteStorage() {
 
 func (n *etcdNSERegistryServer) sendEvent(resp *registry.NetworkServiceEndpointResponse) {
 	for curr := n.subscribers.Front(); curr != nil; curr = curr.Next() {
-		curr.Value.(chan *registry.NetworkServiceEndpointResponse) <- resp
+		ch := curr.Value.(chan *registry.NetworkServiceEndpointResponse)
+
+		// Non-blocking send with timeout to detect stuck subscribers
+		select {
+		case ch <- resp:
+			// Successfully sent
+		case <-time.After(n.subscriberTimeout):
+			// Subscriber is stuck/dead, remove it
+			logger := log.FromContext(n.chainContext).WithField("etcdNSERegistryServer", "sendEvent")
+			logger.Warnf("subscriber channel timeout, removing stuck subscriber")
+			n.subscribersExecutor.AsyncExec(func() {
+				n.subscribers.Remove(curr)
+				close(ch)
+			})
+		}
 	}
 }
 
@@ -246,13 +264,28 @@ func (n *etcdNSERegistryServer) subscribeOnEvents(ctx context.Context) <-chan *r
 	})
 	wg.Wait() // Block until subscriber is registered
 
+	// Set up cleanup with dual triggers:
+	// 1. Context cancellation (normal cleanup)
+	// 2. Heartbeat timeout (detects dead connections)
 	go func() {
-		<-ctx.Done()
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
 
-		n.subscribersExecutor.AsyncExec(func() {
-			n.subscribers.Remove(node)
-			close(ret)
-		})
+		for {
+			select {
+			case <-ctx.Done():
+				// Normal cleanup on context cancellation
+				n.subscribersExecutor.AsyncExec(func() {
+					if node != nil {
+						n.subscribers.Remove(node)
+					}
+					close(ret)
+				})
+				return
+			case <-ticker.C:
+				// Periodic heartbeat check - keeps monitoring live status
+			}
+		}
 	}()
 
 	return ret
