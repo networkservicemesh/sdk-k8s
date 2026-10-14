@@ -2,7 +2,7 @@
 //
 // Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
-// Copyright (c) 2025 OpenInfra Foundation Europe. All rights reserved.
+// Copyright (c) 2025-2026 OpenInfra Foundation Europe. All rights reserved.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -25,12 +25,15 @@ import (
 	"context"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/edwarnicke/serialize"
 	"github.com/golang/protobuf/ptypes/empty"
 
 	"github.com/pkg/errors"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -43,6 +46,22 @@ import (
 	v1 "github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/apis/networkservicemesh.io/v1"
 	"github.com/networkservicemesh/sdk-k8s/pkg/tools/k8s/client/clientset/versioned"
 )
+
+// nseUpdateChannelSize is the per-subscriber watch buffer size.
+//
+// It is a deliberate trade-off, not an inherited default:
+//   - Larger: tolerates bigger event bursts before a slow watcher is declared
+//     lagged, but costs more memory per concurrent watcher (bounded worst case
+//     = nseUpdateChannelSize * sizeof(response) * number of watchers).
+//   - Smaller: cheaper per watcher, but a watcher is declared lagged (and its
+//     stream terminated with codes.ResourceExhausted) after a smaller burst,
+//     forcing it to re-issue Find and perform a full unpaginated List resync.
+//
+// 64 matches the historical value and is adequate for current workloads. Revisit
+// once a client actually acts on ResourceExhausted: today nothing in the sdk
+// re-issues Find on that code, so the "re-list to resync" half of the contract
+// is not yet realized by callers (the server merely stops leaking and signals).
+const nseUpdateChannelSize = 64
 
 type etcdNSERegistryServer struct {
 	chainContext   context.Context
@@ -63,7 +82,7 @@ func NewNetworkServiceEndpointRegistryServer(chainContext context.Context, ns st
 		client:            client,
 		ns:                ns,
 		subscribers:       list.New(),
-		updateChannelSize: 64,
+		updateChannelSize: nseUpdateChannelSize,
 	}
 
 	go ret.watchRemoteStorage()
@@ -132,8 +151,22 @@ func (n *etcdNSERegistryServer) watchRemoteStorage() {
 }
 
 func (n *etcdNSERegistryServer) sendEvent(resp *registry.NetworkServiceEndpointResponse) {
+	// INVARIANT: must run inside subscribersExecutor. A node's channel is removed
+	// from the list and closed in a single subscribersExecutor job (see
+	// subscribeOnEvents), so the serialized order guarantees sendEvent never sends
+	// on a closed channel.
 	for curr := n.subscribers.Front(); curr != nil; curr = curr.Next() {
-		curr.Value.(chan *registry.NetworkServiceEndpointResponse) <- resp
+		node := curr.Value.(*nseSubscriberNode)
+
+		// Non-blocking send: never block, never remove
+		// Mark subscriber as lagged if buffer full
+		select {
+		case node.channel <- resp:
+		default:
+			// Channel buffer full - subscriber fell behind
+			// Mark as lagged; client will get explicit error on next read
+			node.lagged.Store(true)
+		}
 	}
 }
 
@@ -234,32 +267,59 @@ func (n *etcdNSERegistryServer) Unregister(ctx context.Context, request *registr
 	return resp, nil
 }
 
-func (n *etcdNSERegistryServer) subscribeOnEvents(ctx context.Context) <-chan *registry.NetworkServiceEndpointResponse {
-	var ret = make(chan *registry.NetworkServiceEndpointResponse, n.updateChannelSize)
-	var node *list.Element
+func (n *etcdNSERegistryServer) subscribeOnEvents(ctx context.Context) (node *nseSubscriberNode, ch <-chan *registry.NetworkServiceEndpointResponse) {
+	ret := make(chan *registry.NetworkServiceEndpointResponse, n.updateChannelSize)
+	node = &nseSubscriberNode{
+		channel: ret,
+	}
+	var listNode *list.Element
 	var wg sync.WaitGroup
+	var closeOnce sync.Once
 
 	wg.Add(1)
 	n.subscribersExecutor.AsyncExec(func() {
 		defer wg.Done()
-		node = n.subscribers.PushBack(ret)
+		listNode = n.subscribers.PushBack(node)
 	})
 	wg.Wait() // Block until subscriber is registered
 
+	// Cleanup on context cancel (normal client disconnect).
+	// Remove and close run together inside subscribersExecutor so they are
+	// serialized against sendEvent: once this job runs, the node is gone from
+	// the list before the channel is closed, and no other sendEvent job runs
+	// concurrently. This prevents a send on a closed channel.
 	go func() {
 		<-ctx.Done()
-
 		n.subscribersExecutor.AsyncExec(func() {
-			n.subscribers.Remove(node)
-			close(ret)
+			n.subscribers.Remove(listNode)
+			closeOnce.Do(func() { close(ret) })
 		})
 	}()
 
-	return ret
+	ch = ret
+	return node, ch
+}
+
+// nseSubscriberNode wraps NetworkServiceEndpoint subscriber channel with lagged flag
+type nseSubscriberNode struct {
+	channel chan *registry.NetworkServiceEndpointResponse
+	lagged  atomic.Bool
 }
 
 func (n *etcdNSERegistryServer) watch(ctx context.Context, q *registry.NetworkServiceEndpointQuery, s registry.NetworkServiceEndpointRegistry_FindServer) error {
-	for update := range n.subscribeOnEvents(ctx) {
+	subNode, ch := n.subscribeOnEvents(ctx)
+
+	for update := range ch {
+		// Check if subscriber fell behind
+		if subNode.lagged.Load() {
+			// Signal the client to re-issue Find and re-list to resync (akin to
+			// Kubernetes 410 Gone). NOTE: no sdk client acts on this code yet, so
+			// the resync half of the contract is not realized by callers today;
+			// the immediate benefit is that the server stops leaking memory for
+			// stuck subscribers. See nseUpdateChannelSize for burst sizing.
+			return status.Error(codes.ResourceExhausted, "subscriber fell behind; re-issue Find to resync")
+		}
+
 		if matchutils.MatchNetworkServiceEndpoints(q.GetNetworkServiceEndpoint(), update.GetNetworkServiceEndpoint()) {
 			if err := s.Send(update); err != nil {
 				return err

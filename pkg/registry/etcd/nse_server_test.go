@@ -2,6 +2,8 @@
 //
 // Copyright (c) 2022-2024 Cisco and/or its affiliates.
 //
+// Copyright (c) 2025-2026 OpenInfra Foundation Europe. All rights reserved.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +33,8 @@ import (
 	"github.com/networkservicemesh/api/pkg/api/registry"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -193,49 +197,84 @@ func Test_K8sNSERegistry_FindWatch(t *testing.T) {
 	require.Equal(t, 1, len(nseResp.GetNetworkServiceEndpoint().NetworkServiceLabels))
 }
 
+// Test_NSEHighloadWatch_ShouldNotFail verifies the server stays responsive and
+// crash-free under many concurrent watchers during an event burst.
+//
+// With the non-blocking sendEvent() contract, a watcher that falls behind is
+// marked lagged and its stream is terminated with codes.ResourceExhausted; the
+// server never blocks the broadcast on a slow watcher. So this test no longer
+// asserts near-complete delivery to every watcher (that assumed the old
+// blocking behavior and was timing-fragile). Instead it asserts the essential
+// property: no panic/deadlock, and every watcher goroutine terminates within
+// the deadline (cleanly, or via ResourceExhausted when lagged).
 func Test_NSEHighloadWatch_ShouldNotFail(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	const clinetCount = 20
+	const clientCount = 20
 
-	var updateCount = watch.DefaultChanSize
-	var actual atomic.Int32
-	var myClientset = fake.NewSimpleClientset()
+	updateCount := watch.DefaultChanSize // keep <= fake watcher buffer (no overflow panic)
+	var delivered atomic.Int32
+	myClientset := fake.NewSimpleClientset()
 
-	var s = etcd.NewNetworkServiceEndpointRegistryServer(ctx, "ns-1", myClientset)
+	s := etcd.NewNetworkServiceEndpointRegistryServer(ctx, "ns-1", myClientset)
 	var doneWg, startWg sync.WaitGroup
-	doneWg.Add(clinetCount)
-	startWg.Add(clinetCount)
+	doneWg.Add(clientCount)
+	startWg.Add(clientCount)
 
-	for i := 0; i < clinetCount; i++ {
+	for i := 0; i < clientCount; i++ {
 		go func() {
 			defer doneWg.Done()
-			clientCtx, cancel := context.WithCancel(ctx)
-			defer cancel()
+			clientCtx, cancelClient := context.WithCancel(ctx)
+			defer cancelClient()
 			c := adapters.NetworkServiceEndpointServerToClient(s)
-			stream, _ := c.Find(clientCtx, &registry.NetworkServiceEndpointQuery{
+			stream, err := c.Find(clientCtx, &registry.NetworkServiceEndpointQuery{
 				NetworkServiceEndpoint: &registry.NetworkServiceEndpoint{},
 				Watch:                  true,
 			})
 			startWg.Done()
-			for range registry.ReadNetworkServiceEndpointChannel(stream) {
-				actual.Add(1)
+			if err != nil {
+				return
+			}
+			// Drain until the stream ends. The goroutine must always terminate -
+			// that is the core guarantee. Acceptable terminations: EOF, lagged
+			// (ResourceExhausted), or context cancellation on shutdown.
+			for {
+				_, recvErr := stream.Recv()
+				if recvErr != nil {
+					code := status.Code(recvErr)
+					require.Contains(t,
+						[]codes.Code{codes.ResourceExhausted, codes.Canceled, codes.DeadlineExceeded, codes.OK, codes.Unknown},
+						code, "unexpected stream error: %v", recvErr)
+					return
+				}
+				delivered.Add(1)
 			}
 		}()
 	}
 	startWg.Wait()
+	// Issue the burst, then cancel so healthy (non-lagged) watchers also wind
+	// down and every goroutine can exit.
+	for i := int32(0); i < updateCount; i++ {
+		_, _ = myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").Create(ctx, &v1.NetworkServiceEndpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: uuid.NewString(),
+			},
+		}, metav1.CreateOptions{})
+	}
+	cancel()
+
+	allDone := make(chan struct{})
 	go func() {
-		for i := int32(0); i < updateCount; i++ {
-			_, _ = myClientset.NetworkservicemeshV1().NetworkServiceEndpoints("ns-1").Create(ctx, &v1.NetworkServiceEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: uuid.NewString(),
-				},
-			}, metav1.CreateOptions{})
-		}
+		doneWg.Wait()
+		close(allDone)
 	}()
-	doneWg.Wait()
-	require.InDelta(t, updateCount, actual.Load()/clinetCount, 20)
+	select {
+	case <-allDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("watcher goroutines did not terminate; possible deadlock")
+	}
+	t.Logf("total events delivered across %d watchers: %d", clientCount, delivered.Load())
 }
 
 func Test_K8sNSERegistry_Find_ExpiredNSE(t *testing.T) {
